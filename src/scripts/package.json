@@ -1,0 +1,27 @@
+{
+  "name": "murugan-media-upload",
+  "version": "1.0.0",
+  "description": "Bulk media upload script for Murugan Wallpapers & Videos",
+  "type": "module",
+  "main": "upload_media.js",
+  "scripts": {
+    "upload": "node upload_media.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "murugan",
+    "supabase",
+    "media",
+    "upload"
+  ],
+  "author": "Murugan Wallpapers Team",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "sharp": "^0.33.0",
+    "fast-glob": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

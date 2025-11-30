@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Backend API Tester</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #0d5e38;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .test-section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      border-left: 4px solid #0d5e38;
+    }
+    .test-section h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #333;
+    }
+    button {
+      background: #0d5e38;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #0a4a2d;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .result.success {
+      background: #e8f5e9;
+      border: 1px solid #4caf50;
+      color: #2e7d32;
+    }
+    .result.error {
+      background: #ffebee;
+      border: 1px solid #f44336;
+      color: #c62828;
+    }
+    .result.info {
+      background: #e3f2fd;
+      border: 1px solid #2196f3;
+      color: #1565c0;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+    .status-badge.pass { background: #4caf50; color: white; }
+    .status-badge.fail { background: #f44336; color: white; }
+    .status-badge.pending { background: #ff9800; color: white; }
+    .warning {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      color: #856404;
+    }
+    .warning strong { color: #d39e00; }
+    .summary {
+      background: #e8f5e9;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 30px;
+    }
+    .summary h3 {
+      color: #0d5e38;
+      margin-bottom: 15px;
+    }
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #c8e6c9;
+    }
+    .summary-item:last-child {
+      border-bottom: none;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Admin Backend API Tester</h1>
+    <p class="subtitle">Test your admin backend endpoints to ensure user panel integration works</p>
+    
+    <div class="warning">
+      <strong>⚠️ Important:</strong> This page tests the admin backend at:<br>
+      <code>https://xgqtycssifmpfbxmqzri.supabase.co/functions/v1/make-server-d083adfb</code>
+    </div>
+
+    <!-- Test 1: Health -->
+    <div class="test-section">
+      <h2>1. Health Check <span id="health-status" class="status-badge pending">Not Tested</span></h2>
+      <p>Verify admin backend is running</p>
+      <button onclick="testHealth()">Run Test</button>
+      <div id="health-result"></div>
+    </div>
+
+    <!-- Test 2: Media List -->
+    <div class="test-section">
+      <h2>2. Media List Endpoint <span id="list-status" class="status-badge pending">Not Tested</span></h2>
+      <p>Check if /media/list returns data</p>
+      <button onclick="testMediaList()">Run Test</button>
+      <div id="list-result"></div>
+    </div>
+
+    <!-- Test 3: Field Validation -->
+    <div class="test-section">
+      <h2>3. Media Field Validation <span id="fields-status" class="status-badge pending">Not Tested</span></h2>
+      <p>Verify media objects have required fields (url, thumbnail, stats)</p>
+      <button onclick="testFields()" id="fields-btn" disabled>Run Test (requires test 2)</button>
+      <div id="fields-result"></div>
+    </div>
+
+    <!-- Test 4: Like Tracking -->
+    <div class="test-section">
+      <h2>4. Like Tracking <span id="like-status" class="status-badge pending">Not Tested</span></h2>
+      <p>Test /media/:id/like endpoint</p>
+      <input type="text" id="like-media-id" placeholder="Enter media ID (auto-filled from test 2)">
+      <button onclick="testLike()" id="like-btn" disabled>Run Test</button>
+      <div id="like-result"></div>
+    </div>
+
+    <!-- Test 5: Download Tracking -->
+    <div class="test-section">
+      <h2>5. Download Tracking <span id="download-status" class="status-badge pending">Not Tested</span></h2>
+      <p>Test /media/:id/download endpoint</p>
+      <button onclick="testDownload()" id="download-btn" disabled>Run Test</button>
+      <div id="download-result"></div>
+    </div>
+
+    <!-- Test 6: Share Tracking -->
+    <div class="test-section">
+      <h2>6. Share Tracking <span id="share-status" class="status-badge pending">Not Tested</span></h2>
+      <p>Test /media/:id/share endpoint</p>
+      <button onclick="testShare()" id="share-btn" disabled>Run Test</button>
+      <div id="share-result"></div>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary" id="summary" style="display: none;">
+      <h3>✅ Test Summary</h3>
+      <div class="summary-item">
+        <span>Tests Passed:</span>
+        <span id="passed-count">0</span>
+      </div>
+      <div class="summary-item">
+        <span>Tests Failed:</span>
+        <span id="failed-count">0</span>
+      </div>
+      <div class="summary-item">
+        <span>Media Items Found:</span>
+        <span id="media-count">0</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'https://xgqtycssifmpfbxmqzri.supabase.co/functions/v1/make-server-d083adfb';
+    const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhncXR5Y3NzaWZtcGZieG1xenJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxMDE5MjIsImV4cCI6MjA3ODY3NzkyMn0.yoI_jddrRBdMAlWIlHLAhB9cKhTPIO27pNIUwBY5l0g';
+    
+    let testResults = { passed: 0, failed: 0 };
+    let mediaData = null;
+    let firstMediaId = null;
+
+    function showResult(elementId, message, type) {
+      const el = document.getElementById(elementId);
+      el.innerHTML = `<div class="result ${type}">${message}</div>`;
+    }
+
+    function updateStatus(statusId, passed) {
+      const el = document.getElementById(statusId);
+      el.textContent = passed ? 'PASS' : 'FAIL';
+      el.className = `status-badge ${passed ? 'pass' : 'fail'}`;
+      if (passed) testResults.passed++;
+      else testResults.failed++;
+      updateSummary();
+    }
+
+    function updateSummary() {
+      document.getElementById('summary').style.display = 'block';
+      document.getElementById('passed-count').textContent = testResults.passed;
+      document.getElementById('failed-count').textContent = testResults.failed;
+    }
+
+    async function testHealth() {
+      try {
+        const response = await fetch(`${API_BASE}/health`);
+        const data = await response.json();
+        
+        if (data.status === 'ok') {
+          showResult('health-result', JSON.stringify(data, null, 2), 'success');
+          updateStatus('health-status', true);
+        } else {
+          showResult('health-result', 'Health check returned unexpected response', 'error');
+          updateStatus('health-status', false);
+        }
+      } catch (error) {
+        showResult('health-result', `Error: ${error.message}\n\nAdmin backend is not responding. Check if it's deployed and running.`, 'error');
+        updateStatus('health-status', false);
+      }
+    }
+
+    async function testMediaList() {
+      try {
+        const response = await fetch(`${API_BASE}/media/list?visibility=public&excludeYoutube=true&limit=5`, {
+          headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+        });
+        
+        const data = await response.json();
+        mediaData = data;
+        
+        if (data.data && Array.isArray(data.data)) {
+          const count = data.data.length;
+          document.getElementById('media-count').textContent = count;
+          
+          if (count > 0) {
+            firstMediaId = data.data[0].id;
+            document.getElementById('like-media-id').value = firstMediaId;
+            document.getElementById('fields-btn').disabled = false;
+            document.getElementById('like-btn').disabled = false;
+            document.getElementById('download-btn').disabled = false;
+            document.getElementById('share-btn').disabled = false;
+            
+            showResult('list-result', 
+              `✅ Found ${count} media items\n\nFirst item:\n${JSON.stringify(data.data[0], null, 2)}`, 
+              'success'
+            );
+            updateStatus('list-status', true);
+          } else {
+            showResult('list-result', 
+              '⚠️ Endpoint works but returned 0 media items.\n\nUpload some content via admin panel!', 
+              'error'
+            );
+            updateStatus('list-status', false);
+          }
+        } else {
+          showResult('list-result', 
+            `❌ Invalid response format. Expected {data: [], pagination: {}}\n\nGot: ${JSON.stringify(data, null, 2)}`, 
+            'error'
+          );
+          updateStatus('list-status', false);
+        }
+      } catch (error) {
+        showResult('list-result', 
+          `❌ Error: ${error.message}\n\n/media/list endpoint doesn't exist or returned error.\n\nSee ADMIN_BACKEND_REQUIREMENTS.md for how to add it.`, 
+          'error'
+        );
+        updateStatus('list-status', false);
+      }
+    }
+
+    async function testFields() {
+      if (!mediaData || !mediaData.data || mediaData.data.length === 0) {
+        showResult('fields-result', 'Run test 2 first to get media data', 'error');
+        return;
+      }
+
+      const media = mediaData.data[0];
+      const required = ['id', 'type', 'title', 'url', 'thumbnail', 'stats'];
+      const missing = [];
+      const present = [];
+
+      required.forEach(field => {
+        if (!media[field]) {
+          missing.push(field);
+        } else {
+          present.push(field);
+        }
+      });
+
+      // Check stats sub-fields
+      if (media.stats) {
+        ['views', 'likes', 'downloads', 'shares'].forEach(stat => {
+          if (media.stats[stat] === undefined) {
+            missing.push(`stats.${stat}`);
+          } else {
+            present.push(`stats.${stat}`);
+          }
+        });
+      }
+
+      if (missing.length === 0) {
+        showResult('fields-result', 
+          `✅ All required fields present!\n\n✓ ${present.join('\n✓ ')}`, 
+          'success'
+        );
+        updateStatus('fields-status', true);
+      } else {
+        showResult('fields-result', 
+          `❌ Missing required fields:\n\n✗ ${missing.join('\n✗ ')}\n\n✓ Present: ${present.join(', ')}\n\nFix your upload code to include these fields!`, 
+          'error'
+        );
+        updateStatus('fields-status', false);
+      }
+    }
+
+    async function testLike() {
+      const mediaId = document.getElementById('like-media-id').value;
+      if (!mediaId) {
+        showResult('like-result', 'Please enter a media ID', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/media/${mediaId}/like`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success || response.ok) {
+          showResult('like-result', 
+            `✅ Like tracked successfully!\n\n${JSON.stringify(data, null, 2)}`, 
+            'success'
+          );
+          updateStatus('like-status', true);
+        } else {
+          showResult('like-result', 
+            `⚠️ Response: ${JSON.stringify(data, null, 2)}`, 
+            'error'
+          );
+          updateStatus('like-status', false);
+        }
+      } catch (error) {
+        showResult('like-result', 
+          `❌ Error: ${error.message}\n\n/media/:id/like endpoint doesn't exist.\n\nAdd it to your admin backend!`, 
+          'error'
+        );
+        updateStatus('like-status', false);
+      }
+    }
+
+    async function testDownload() {
+      const mediaId = document.getElementById('like-media-id').value;
+      if (!mediaId) {
+        showResult('download-result', 'Please enter a media ID in test 4', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/media/${mediaId}/download`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success || response.ok) {
+          showResult('download-result', 
+            `✅ Download tracked successfully!\n\n${JSON.stringify(data, null, 2)}`, 
+            'success'
+          );
+          updateStatus('download-status', true);
+        } else {
+          showResult('download-result', 
+            `⚠️ Response: ${JSON.stringify(data, null, 2)}`, 
+            'error'
+          );
+          updateStatus('download-status', false);
+        }
+      } catch (error) {
+        showResult('download-result', 
+          `❌ Error: ${error.message}\n\n/media/:id/download endpoint doesn't exist.\n\nAdd it to your admin backend!`, 
+          'error'
+        );
+        updateStatus('download-status', false);
+      }
+    }
+
+    async function testShare() {
+      const mediaId = document.getElementById('like-media-id').value;
+      if (!mediaId) {
+        showResult('share-result', 'Please enter a media ID in test 4', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/media/${mediaId}/share`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success || response.ok) {
+          showResult('share-result', 
+            `✅ Share tracked successfully!\n\n${JSON.stringify(data, null, 2)}`, 
+            'success'
+          );
+          updateStatus('share-status', true);
+        } else {
+          showResult('share-result', 
+            `⚠️ Response: ${JSON.stringify(data, null, 2)}`, 
+            'error'
+          );
+          updateStatus('share-status', false);
+        }
+      } catch (error) {
+        showResult('share-result', 
+          `❌ Error: ${error.message}\n\n/media/:id/share endpoint doesn't exist.\n\nAdd it to your admin backend!`, 
+          'error'
+        );
+        updateStatus('share-status', false);
+      }
+    }
+
+    // Auto-run health check on page load
+    window.addEventListener('load', () => {
+      setTimeout(() => testHealth(), 500);
+    });
+  </script>
+</body>
+</html>
