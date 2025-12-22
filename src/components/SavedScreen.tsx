@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { userAPI, MediaItem, YouTubeMedia } from '../utils/api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { MediaCard } from './MediaCard';
@@ -23,7 +23,7 @@ export function SavedScreen({ onSelectMedia }: SavedScreenProps) {
   const [savedSongs, setSavedSongs] = useState<YouTubeMedia[]>([]);
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [songFavorites, setSongFavorites] = useState<Set<string>>(new Set());
+  const [, setSongFavorites] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'wallpapers' | 'songs'>('wallpapers');
   const { user } = useAuth();
 
@@ -287,11 +287,12 @@ export function SavedScreen({ onSelectMedia }: SavedScreenProps) {
                     <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
                       <Play className="w-6 h-6 text-white fill-current" />
                     </div>
+
                   </div>
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-gray-900 truncate" style={{ fontFamily: 'var(--font-english)', fontSize: '15px', fontWeight: 600 }}>
+                    <h3 className="text-gray-900 truncate" style={{ fontFamily: 'var(--font-english)', fontSize: '0.9375rem', fontWeight: 600 }}>
                       {song.title}
                     </h3>
                     <p className="text-gray-500 text-sm mt-0.5 truncate" style={{ fontFamily: 'var(--font-english)' }}>

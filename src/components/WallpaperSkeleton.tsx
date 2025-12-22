@@ -1,5 +1,5 @@
 import React from 'react';
-import muruganImage from 'figma:asset/d5f2b8db8be54cd7632e2a54ce5388d6337b0c00.png';
+import muruganImage from '../custom-assets/kid-murugan.png';
 
 type WallpaperSkeletonProps = {
   className?: string;

@@ -10,11 +10,11 @@ import {
 
 interface ModuleBannerCarouselProps {
   bannerType:
-    | "wallpaper"
-    | "photos"
-    | "media"
-    | "sparkle"
-    | "home";
+  | "wallpaper"
+  | "photos"
+  | "media"
+  | "sparkle"
+  | "home";
   onBannerClick?: (bannerId: string) => void;
 }
 
@@ -26,7 +26,7 @@ export function ModuleBannerCarousel({
   const [isLoading, setIsLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const autoScrollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoScrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
 
@@ -40,13 +40,18 @@ export function ModuleBannerCarousel({
     try {
       console.log("[Banner Carousel] Loading banners from admin...");
 
-      // Clear old cache keys
-      const oldCacheKey = `banners_${bannerType}`;
-      localStorage.removeItem(oldCacheKey);
-      localStorage.removeItem(`${oldCacheKey}_timestamp`);
-
       // Fetch from API
-      const data = await fetchModuleBanners(bannerType);
+      // Note: fetchModuleBanners handles caching expiration internally
+      let apiType: Banner["type"] = "home"; // Default
+
+      // Map component types to API types
+      if (bannerType === "sparkle") apiType = "spark";
+      else if (bannerType === "media") apiType = "songs";
+      else if (['home', 'wallpaper', 'photos', 'songs', 'spark', 'temple'].includes(bannerType)) {
+        apiType = bannerType as Banner["type"];
+      }
+
+      const data = await fetchModuleBanners(apiType);
       console.log(`[Banner Carousel] ✅ Loaded ${data.length} banners from admin panel`);
 
       if (data.length > 0) {
@@ -109,7 +114,7 @@ export function ModuleBannerCarousel({
   // Handle touch start
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
-    
+
     // Pause auto-scroll when user touches
     if (autoScrollTimerRef.current) {
       clearInterval(autoScrollTimerRef.current);
@@ -189,36 +194,47 @@ export function ModuleBannerCarousel({
 
   if (isLoading) {
     return (
-      <div className="w-full p-[5px]">
-        <div className="w-full h-44 bg-gray-100 rounded-2xl animate-pulse" />
+      <div className="w-full" style={{ padding: 5 }}>
+        <div
+          className="w-full bg-gray-100 rounded-2xl animate-pulse"
+          style={{ height: 176 }}
+        />
       </div>
     );
   }
 
   return (
-    <div className="w-full p-[5px]">
+    <div className="w-full" style={{ padding: 5 }}>
       {/* Horizontal Scrollable Banner */}
       <div className="relative">
+        <style>{".module-banner-scroller::-webkit-scrollbar{display:none}"}</style>
         <div
           ref={scrollContainerRef}
-          className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-hide"
+          className="module-banner-scroller flex overflow-x-auto"
           style={{
             WebkitOverflowScrolling: "touch",
             scrollbarWidth: "none",
             msOverflowStyle: "none",
+            scrollSnapType: "x mandatory",
+            scrollBehavior: "smooth",
+            touchAction: "pan-x pan-y pinch-zoom",
           }}
           onScroll={handleScroll}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {banners.map((banner, index) => (
+          {banners.map((banner) => (
             <div
               key={banner.id}
-              className="flex-shrink-0 snap-center w-full"
+              className="flex-shrink-0 w-full"
+              style={{ scrollSnapAlign: "center" }}
               onClick={() => handleBannerClick(banner.id)}
             >
-              <div className="relative h-44 rounded-2xl overflow-hidden shadow-md cursor-pointer group">
+              <div
+                className="relative rounded-2xl overflow-hidden shadow-md cursor-pointer group"
+                style={{ height: 176 }}
+              >
                 <OptimizedImage
                   src={getOptimalBannerImage(banner)}
                   alt={banner.title}
@@ -237,7 +253,7 @@ export function ModuleBannerCarousel({
                 </div>
 
                 {/* Pagination Dots - Inside banner, above 5px margin */}
-                <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10">
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
                   {banners.map((_, dotIndex) => (
                     <button
                       key={dotIndex}
@@ -251,8 +267,8 @@ export function ModuleBannerCarousel({
                         width: currentIndex === dotIndex ? "20px" : "6px",
                         height: "6px",
                         borderRadius: "3px",
-                        backgroundColor: currentIndex === dotIndex 
-                          ? "rgba(255, 255, 255, 0.95)" 
+                        backgroundColor: currentIndex === dotIndex
+                          ? "rgba(255, 255, 255, 0.95)"
                           : "rgba(255, 255, 255, 0.4)",
                       }}
                       aria-label={`Go to banner ${dotIndex + 1}`}

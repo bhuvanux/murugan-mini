@@ -4,7 +4,7 @@
  * Shows all modules, event types, toggles, reset buttons, and real-time counts
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
@@ -16,10 +16,10 @@ import {
   Eye, Heart, Download, Share2, Play, CheckCircle, 
   HeartOff, BookOpen, Music, Send, MessageCircle, 
   MousePointer, RefreshCw, Trash2, AlertCircle, 
-  CheckCircle2, XCircle, Loader2, Database, 
-  BarChart3, Settings, TrendingUp
+  CheckCircle2, Loader2, Database
 } from 'lucide-react';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { publicAnonKey } from '../../utils/supabase/info';
+import { fetchAdminResponseWith404Fallback } from '../../utils/adminAPI';
 
 interface AnalyticsConfig {
   id: string;
@@ -62,8 +62,6 @@ export default function AdminAnalyticsUnified() {
   const [activeTab, setActiveTab] = useState('overview');
   const [refreshing, setRefreshing] = useState(false);
 
-  const baseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;
-
   useEffect(() => {
     loadAnalyticsData();
   }, []);
@@ -74,7 +72,7 @@ export default function AdminAnalyticsUnified() {
     
     try {
       // Check system status first
-      const statusRes = await fetch(`${baseUrl}/api/analytics/admin/status`, {
+      const statusRes = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/status`, {
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });
       const statusData = await statusRes.json();
@@ -87,7 +85,7 @@ export default function AdminAnalyticsUnified() {
       }
 
       // Load configuration
-      const configRes = await fetch(`${baseUrl}/api/analytics/admin/config`, {
+      const configRes = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/config`, {
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });
       const configData = await configRes.json();
@@ -97,7 +95,7 @@ export default function AdminAnalyticsUnified() {
       }
 
       // Load dashboard
-      const dashboardRes = await fetch(`${baseUrl}/api/analytics/admin/dashboard`, {
+      const dashboardRes = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/dashboard`, {
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });
       const dashboardData = await dashboardRes.json();
@@ -115,7 +113,7 @@ export default function AdminAnalyticsUnified() {
 
   async function toggleEventTracking(config: AnalyticsConfig) {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/config`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/config`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +147,7 @@ export default function AdminAnalyticsUnified() {
     }
 
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/reset`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,7 +176,7 @@ export default function AdminAnalyticsUnified() {
   async function refreshCache() {
     setRefreshing(true);
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/refresh`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/refresh`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });
@@ -205,7 +203,7 @@ export default function AdminAnalyticsUnified() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/initialize`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/initialize`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });

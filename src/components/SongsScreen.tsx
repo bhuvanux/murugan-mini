@@ -1,7 +1,7 @@
 // USER PANEL - SongsScreen.tsx with Spotify-style Player
 // Integrated with YouTubeMusicPlayer component
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Music,
   Heart,
@@ -151,6 +151,9 @@ export function SongsScreen() {
 
   const playSong = (index: number) => {
     setCurrentSongIndex(index);
+    if (songs[index]?.id) {
+      localStorage.setItem("last_played_media_id", songs[index].id);
+    }
     console.log('[SongsScreen] ▶️ Playing song:', songs[index]?.title);
   };
 
@@ -298,7 +301,7 @@ export function SongsScreen() {
                     className="truncate" 
                     style={{ 
                       fontFamily: 'var(--font-english)', 
-                      fontSize: '16px', 
+                      fontSize: '1rem', 
                       fontWeight: 600,
                       color: currentSongIndex === index ? '#0d5e38' : '#111827'
                     }}
@@ -363,7 +366,7 @@ export function SongsScreen() {
           </div>
         ) : (
           <div className="space-y-3">
-            {displayItems.map((video, index) => {
+            {displayItems.map((video) => {
               const youtubeId = extractYouTubeId(video.embedUrl);
               return (
                 <div
@@ -374,14 +377,14 @@ export function SongsScreen() {
                     <iframe
                       src={`https://www.youtube.com/embed/${youtubeId}?autoplay=0&controls=1&modestbranding=1&rel=0`}
                       className="absolute inset-0 w-full h-full"
-                      allow="accelerometer; autoplay; encrypted-media"
+                      allow="accelerometer; encrypted-media"
                       allowFullScreen
                     />
                   </div>
 
                   <div className="p-3 flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-gray-900 line-clamp-2" style={{ fontFamily: 'var(--font-english)', fontSize: '16px', fontWeight: 600 }}>
+                      <h3 className="text-gray-900 line-clamp-2" style={{ fontFamily: 'var(--font-english)', fontSize: '1rem', fontWeight: 600 }}>
                         {video.title}
                       </h3>
                       {video.description && (
@@ -421,7 +424,7 @@ export function SongsScreen() {
         <YouTubeMusicPlayer
           songs={songs}
           currentIndex={currentSongIndex}
-          autoPlay={true}
+          autoPlay={false}
           onClose={() => setCurrentSongIndex(null)}
           onSongChange={(index) => setCurrentSongIndex(index)}
           onToggleFavorite={toggleFavorite}

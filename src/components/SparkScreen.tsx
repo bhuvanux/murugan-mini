@@ -1,198 +1,148 @@
-// USER PANEL - UPDATED SparkScreen.tsx
-// Replace your existing SparkScreen.tsx with this file
-
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import {
-  ExternalLink,
-  Heart,
-  Sparkles,
-  RefreshCw,
-  MessageCircle,
-} from "lucide-react";
-import { Button } from "./ui/button";
+import { Download, Heart, RefreshCw, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner@2.0.3";
+import { Button } from "./ui/button";
+import { ReelView } from "./ReelView";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { userAPI, SparkleArticle } from "../utils/api/client";
 import { MuruganLoader } from "./MuruganLoader";
 import { analyticsTracker } from "../utils/analytics/useAnalytics";
+import { SparkleArticle, userAPI } from "../utils/api/client";
+import { WhatsAppIcon } from "./icons/WhatsAppIcon";
 
 export function SparkScreen() {
-  const [articles, setArticles] = useState<SparkleArticle[]>(
-    [],
-  );
+  const [articles, setArticles] = useState<SparkleArticle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [likedArticles, setLikedArticles] = useState<
-    Set<string>
-  >(new Set());
-  const containerRef = useRef<HTMLDivElement>(null);
+  const viewedSparkleIds = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    loadArticles();
-    // Load liked articles from localStorage
-    const saved = localStorage.getItem("likedArticles");
-    if (saved) {
-      setLikedArticles(new Set(JSON.parse(saved)));
-    }
-  }, []);
-
-  const loadArticles = async () => {
+  const loadArticles = useCallback(async () => {
     setLoading(true);
     try {
-      console.log(
-        "[SparkScreen] Loading articles from admin backend...",
-      );
-
+      console.log("[SparkScreen] Loading sparkle articles...");
       const result = await userAPI.getSparkleArticles({
         page: 1,
         limit: 50,
       });
 
-      console.log(
-        `[SparkScreen] Loaded ${result.data.length} articles`,
-      );
       setArticles(result.data || []);
-
-      if (result.data.length === 0) {
-        console.log('No articles yet. Check back later!');
-      }
+      console.log(`[SparkScreen] Loaded ${result.data.length} sparkle items`);
     } catch (error) {
-      console.error("Error loading articles:", error);
+      console.error("[SparkScreen] Error loading sparkles:", error);
+      toast.error("Failed to load sparkles. Please try again.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const container = e.currentTarget;
-    const scrollTop = container.scrollTop;
-    const cardHeight = window.innerHeight;
-    const newIndex = Math.round(scrollTop / cardHeight);
+  useEffect(() => {
+    void loadArticles();
+  }, [loadArticles]);
 
-    if (
-      newIndex !== currentIndex &&
-      newIndex >= 0 &&
-      newIndex < articles.length
-    ) {
-      setCurrentIndex(newIndex);
-    }
-  };
+  const handleItemView = useCallback(async (item: SparkleArticle) => {
+    if (viewedSparkleIds.current.has(item.id)) return;
 
-  const toggleLike = async (articleId: string) => {
-    const isLiked = likedArticles.has(articleId);
-    
+    viewedSparkleIds.current.add(item.id);
     try {
-      // Optimistic update
-      setLikedArticles((prev) => {
-        const newSet = new Set(prev);
-        if (isLiked) {
-          newSet.delete(articleId);
-        } else {
-          newSet.add(articleId);
-        }
-        localStorage.setItem(
-          "likedArticles",
-          JSON.stringify(Array.from(newSet)),
-        );
-        return newSet;
-      });
-
-      // Track like/unlike on backend using new unified analytics
-      if (isLiked) {
-        await analyticsTracker.untrack('sparkle', articleId, 'like');
-        toast.success("Removed from favorites");
-      } else {
-        await analyticsTracker.track('sparkle', articleId, 'like');
-        toast.success("Added to favorites");
-      }
+      console.log(`[SparkScreen] Tracking view for sparkle: ${item.id}`);
+      const result = await analyticsTracker.track("sparkle", item.id, "view");
+      console.log(`[SparkScreen] View tracking result:`, result);
     } catch (error) {
-      console.error("Error toggling like:", error);
-      // Revert on error
-      setLikedArticles((prev) => {
-        const newSet = new Set(prev);
-        if (isLiked) {
-          newSet.add(articleId);
-        } else {
-          newSet.delete(articleId);
-        }
-        localStorage.setItem(
-          "likedArticles",
-          JSON.stringify(Array.from(newSet)),
-        );
-        return newSet;
-      });
+      console.error("[SparkScreen] Failed to track view", error);
     }
-  };
+  }, []);
 
-  const handleShare = async (article: SparkleArticle) => {
+  const handleLikeToggle = useCallback(
+    async (item: SparkleArticle, nextLiked: boolean) => {
+      try {
+        console.log(`[SparkScreen] ${nextLiked ? 'Liking' : 'Unliking'} sparkle: ${item.id}`);
+        if (nextLiked) {
+          const result = await analyticsTracker.track("sparkle", item.id, "like");
+          console.log(`[SparkScreen] Like tracking result:`, result);
+          toast.success("Added to favorites");
+        } else {
+          const result = await analyticsTracker.untrack("sparkle", item.id, "like");
+          console.log(`[SparkScreen] Unlike tracking result:`, result);
+          toast.success("Removed from favorites");
+        }
+        return true;
+      } catch (error) {
+        console.error("[SparkScreen] Failed to toggle like", error);
+        toast.error("Failed to update favorite. Please try again.");
+        return false;
+      }
+    },
+    [],
+  );
+
+  const handleShare = useCallback(async (article: SparkleArticle) => {
     try {
-      // Track share using new unified analytics
-      await analyticsTracker.track('sparkle', article.id, 'share');
-      
       const shareData = {
         title: article.title,
         text: article.snippet,
         url: article.url,
       };
 
-      if (navigator.share) {
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.share &&
+        article.url &&
+        article.url !== "#"
+      ) {
         await navigator.share(shareData);
+        await analyticsTracker.track("sparkle", article.id, "share");
         toast.success("Shared successfully!");
-      } else {
-        // Fallback: create a temporary textarea to copy
-        const textToCopy = `${article.title}\n\n${article.url}`;
-        const textArea = document.createElement("textarea");
-        textArea.value = textToCopy;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-999999px";
-        document.body.appendChild(textArea);
-        textArea.select();
-        try {
-          document.execCommand("copy");
-          toast.success("Link copied to clipboard!");
-        } catch (e) {
-          console.error('Failed to copy link');
-          toast.error("Failed to copy link");
-        } finally {
-          document.body.removeChild(textArea);
-        }
+        return;
+      }
+
+      const textToCopy = `${article.title}\n\n${article.url ?? ""}`.trim();
+      const textArea = document.createElement("textarea");
+      textArea.value = textToCopy;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.select();
+
+      try {
+        document.execCommand("copy");
+        await analyticsTracker.track("sparkle", article.id, "share");
+        toast.success("Link copied to clipboard!");
+      } catch (copyError) {
+        console.error("[SparkScreen] Failed to copy link", copyError);
+        toast.error("Failed to copy link");
+      } finally {
+        document.body.removeChild(textArea);
       }
     } catch (error) {
-      if ((error as Error).name !== "AbortError") {
-        console.error("Error sharing:", error);
-        toast.error("Failed to share");
+      if ((error as Error).name === "AbortError") {
+        return;
       }
+      console.error("[SparkScreen] Error sharing sparkle", error);
+      toast.error("Failed to share");
     }
-  };
+  }, []);
 
-  const handleReadFull = async (url: string, articleId: string) => {
-    if (url && url !== "#") {
-      // Track view/read using new unified analytics
-      await analyticsTracker.track('sparkle', articleId, 'read');
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-  };
-
-  const formatDate = (dateString: string) => {
+  const handleDownload = useCallback(async (article: SparkleArticle) => {
     try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffHours / 24);
+      const source = article.videoUrl || article.image;
+      if (!source) {
+        toast.error("No media available to download");
+        return;
+      }
 
-      if (diffHours < 1) return "Just now";
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays < 7) return `${diffDays}d ago`;
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return dateString;
+      await analyticsTracker.track("sparkle", article.id, "download");
+
+      const link = document.createElement("a");
+      link.href = source;
+      link.download = article.title || "sparkle";
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("[SparkScreen] Failed to download sparkle", error);
+      toast.error("Failed to download");
     }
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -201,184 +151,379 @@ export function SparkScreen() {
           <MuruganLoader size={50} />
         </div>
         <div className="text-center">
-          <p className="text-white text-sm">
-            Loading divine updates...
-          </p>
+          <p className="text-white text-sm">Loading divine updates...</p>
         </div>
       </div>
     );
   }
 
   if (articles.length === 0) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gradient-to-b from-[#0d5e38] to-black px-4">
-        <div className="text-center">
-          <Sparkles className="w-16 h-16 text-white mx-auto mb-4" />
-          <h3 className="text-xl font-bold mb-2 text-white">
-            No articles yet
-          </h3>
-          <p className="text-white/80 mb-4">
-            Check back later for divine updates
-          </p>
-          <Button
-            onClick={loadArticles}
-            className="bg-white text-[#0d5e38] hover:bg-white/90"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
-      </div>
-    );
+    return <SparkleEmptyState onRefresh={loadArticles} />;
   }
 
   return (
-    <div className="relative h-screen overflow-hidden bg-black">
-      {/* Scroll Container */}
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="h-screen overflow-y-scroll snap-y snap-mandatory hide-scrollbar"
-        style={{
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
-        }}
-      >
-        {articles.map((article, index) => (
-          <div
-            key={article.id}
-            className="h-screen w-full snap-start snap-always relative"
-          >
-            <ArticleCard
-              article={article}
-              isActive={index === currentIndex}
-              formatDate={formatDate}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Fixed Action Buttons - Aligned with description bottom */}
-      {articles.length > 0 && (
-        <div className="fixed right-4 bottom-40 flex flex-col-reverse gap-4 z-50 p-[0px] m-[0px]">
-          {/* Like Button */}
-          <button
-            onClick={() => toggleLike(articles[currentIndex].id)}
-            className="group"
-          >
-            <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center group-hover:bg-white/20 transition-all">
-              <Heart
-                className={`w-6 h-6 transition-all ${
-                  likedArticles.has(articles[currentIndex].id)
-                    ? "fill-red-500 text-red-500"
-                    : "text-white group-hover:scale-110"
-                }`}
-              />
-            </div>
-          </button>
-
-          {/* WhatsApp Share Button */}
-          <button
-            onClick={() => handleShare(articles[currentIndex])}
-            className="group"
-          >
-            <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center group-hover:bg-white/20 transition-all">
-              <MessageCircle className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
-            </div>
-          </button>
-
-          {/* Read Article Button */}
-          <button
-            onClick={() => handleReadFull(articles[currentIndex].url, articles[currentIndex].id)}
-            className="group"
-          >
-            <div className="w-14 h-14 rounded-full bg-[#0d5e38] hover:bg-[#0a5b34] flex items-center justify-center transition-all border border-[#0d5e38]/50 group-hover:scale-110">
-              <ExternalLink className="w-6 h-6 text-white" />
-            </div>
-          </button>
-        </div>
+    <ReelView
+      items={articles}
+      storageKey="sparkle_reel_likes"
+      onItemView={handleItemView}
+      onLikeToggle={handleLikeToggle}
+      actionsClassName="fixed right-4 bottom-[calc(env(safe-area-inset-bottom,0px)+120px)] flex flex-col-reverse gap-4"
+      renderCard={({ item, isActive }) => (
+        <SparkleCard article={item} isActive={isActive} />
       )}
+      renderActions={({ item, isLiked, toggleLike }) => (
+        <SparkleActions
+          article={item}
+          isLiked={isLiked}
+          onToggleLike={toggleLike}
+          onShare={handleShare}
+          onDownload={handleDownload}
+        />
+      )}
+    />
+  );
+}
 
-      <style dangerouslySetInnerHTML={{__html: `
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-      `}} />
+function SparkleEmptyState({ onRefresh }: { onRefresh: () => void }) {
+  return (
+    <div className="h-screen flex items-center justify-center bg-gradient-to-b from-[#0d5e38] to-black px-4">
+      <div className="text-center">
+        <Sparkles className="w-16 h-16 text-white mx-auto mb-4" />
+        <h3 className="text-xl font-bold mb-2 text-white">No sparkles yet</h3>
+        <p className="text-white/80 mb-4">Check back later for divine updates</p>
+        <Button
+          onClick={onRefresh}
+          className="bg-white text-[#0d5e38] hover:bg-white/90"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
     </div>
   );
 }
 
-interface ArticleCardProps {
+interface SparkleCardProps {
   article: SparkleArticle;
   isActive: boolean;
-  formatDate: (date: string) => string;
 }
 
-function ArticleCard({
-  article,
-  isActive,
-  formatDate,
-}: ArticleCardProps) {
+function SparkleCard({ article, isActive }: SparkleCardProps) {
+  const heading = article.title?.trim() ?? "";
+  const body = (article.content || article.snippet || "").trim();
+  
+  // AGGRESSIVE: Hide ALL titles for now to eliminate filename issue completely
+  const showHeading = false; // Temporarily disable all titles
+  const showBody = body.length > 0 && body !== heading;
+  const showTextOverlay = showHeading || showBody;
+  
+  console.log('[SparkleCard] Article data:', {
+    id: article.id,
+    title: heading,
+    content: body.substring(0, 50) + '...',
+    type: article.type,
+    hasVideo: !!article.videoUrl
+  });
+
+  // DEBUG: Show that text overlays are disabled
+  if (heading.length > 0) {
+    console.log(`[SparkleCard] FILENAME HIDDEN: "${heading}" - Text overlays disabled`);
+  }
+
   return (
-    <div className="relative w-full h-full">
-      {/* Hero Image with Gradient Overlay */}
+    <div className="relative h-full w-full bg-black">
       <div className="absolute inset-0">
-        <ImageWithFallback
-          src={article.image}
-          alt={article.title}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/95" />
-      </div>
-
-      {/* Content */}
-      <div className="relative h-full flex flex-col justify-between p-6 pt-20 pb-40">
-        {/* Top Content */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={
-            isActive
-              ? { opacity: 1, y: 0 }
-              : { opacity: 0, y: -20 }
-          }
-          transition={{ duration: 0.5 }}
-        >
-          {/* Tags */}
-          {article.tags && article.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {article.tags.slice(0, 3).map((tag, idx) => (
-                <span
-                  key={idx}
-                  className="px-3 py-1 bg-[#0d5e38]/90 backdrop-blur-sm text-white text-xs font-semibold rounded-full"
-                >
-                  #{tag}
-                </span>
-              ))}
-            </div>
+        <div className="absolute inset-0">
+          {article.type === "video" && article.videoUrl ? (
+            <SparkleVideoPlayer
+              src={article.videoUrl}
+              poster={article.image || undefined}
+              isActive={isActive}
+            />
+          ) : (
+            <ImageWithFallback
+              src={article.image}
+              alt={article.title}
+              className="h-full w-full object-cover"
+            />
           )}
-        </motion.div>
+        </div>
 
-        {/* Bottom Content */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={
-            isActive
-              ? { opacity: 1, y: 0 }
-              : { opacity: 0, y: 20 }
-          }
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="space-y-4"
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-transparent via-[65%] to-black/85" />
+
+        {/* TEMPORARILY DISABLED ALL TEXT OVERLAYS TO ELIMINATE FILENAME ISSUE */}
+        {/* {showHeading && (
+          <div className="pointer-events-none absolute left-4 right-20 top-[calc(env(safe-area-inset-top,0px)+16px)]">
+            <motion.h3
+              layout
+              className="max-w-[70%] text-sm font-semibold uppercase tracking-wide text-white drop-shadow"
+            >
+              {heading}
+            </motion.h3>
+          </div>
+        )}
+
+        {showBody && (
+          <div className="pointer-events-auto absolute left-4 right-24 bottom-[calc(env(safe-area-inset-bottom,0px)+140px)]">
+            <motion.p
+              layout
+              className="max-w-[80%] text-base font-medium leading-snug text-white drop-shadow-lg"
+            >
+              {body}
+            </motion.p>
+          </div>
+        )} */}
+      </div>
+    </div>
+  );
+}
+
+interface SparkleActionsProps {
+  article: SparkleArticle;
+  isLiked: boolean;
+  onToggleLike: () => Promise<void>;
+  onShare: (article: SparkleArticle) => Promise<void> | void;
+  onDownload: (article: SparkleArticle) => Promise<void> | void;
+}
+
+function SparkleActions({
+  article,
+  isLiked,
+  onToggleLike,
+  onShare,
+  onDownload,
+}: SparkleActionsProps) {
+  return (
+    <>
+      <button
+        onClick={() => {
+          void onToggleLike();
+        }}
+        className="group"
+        aria-label={isLiked ? "Unlike sparkle" : "Like sparkle"}
+      >
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-sm transition-all group-hover:bg-white/20">
+          <Heart
+            className={`h-6 w-6 transition-all ${
+              isLiked
+                ? "fill-red-500 text-red-500"
+                : "text-white group-hover:scale-110"
+            }`}
+          />
+        </div>
+      </button>
+
+      <button
+        onClick={() => {
+          void onShare(article);
+        }}
+        className="group"
+        aria-label="Share sparkle"
+      >
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-sm transition-all group-hover:bg-white/20">
+          <WhatsAppIcon className="h-6 w-6 text-[#25D366] transition-transform group-hover:scale-110" />
+        </div>
+      </button>
+
+      <button
+        onClick={() => {
+          void onDownload(article);
+        }}
+        className="group"
+        aria-label="Download sparkle"
+        disabled={!(article.videoUrl || article.image)}
+      >
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-sm transition-all group-hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40">
+          <Download className="h-6 w-6 text-white transition-transform group-hover:scale-110" />
+        </div>
+      </button>
+    </>
+  );
+}
+
+interface SparkleVideoPlayerProps {
+  src: string;
+  poster?: string;
+  isActive: boolean;
+}
+
+function SparkleVideoPlayer({ src, poster, isActive }: SparkleVideoPlayerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isActive) {
+      const playPromise = video.play();
+      if (playPromise) {
+        playPromise
+          .then(() => setIsPlaying(true))
+          .catch((error) => {
+            console.warn("[SparkScreen] Autoplay blocked", error);
+            setIsPlaying(false);
+          });
+      }
+    } else {
+      video.pause();
+      setIsPlaying(false);
+      if (!isDragging) {
+        video.currentTime = 0;
+        setCurrentTime(0);
+      }
+    }
+  }, [isActive, isDragging]);
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current && !isDragging) {
+      setCurrentTime(videoRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+    }
+  };
+
+  const togglePlayPause = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isPlaying) {
+      video.pause();
+    } else {
+      if (isMuted) {
+        video.muted = false;
+        video.volume = 1;
+        setIsMuted(false);
+      }
+      const playPromise = video.play();
+      if (playPromise) {
+        playPromise.catch((error) => {
+          console.warn("[SparkScreen] Playback failed", error);
+          setIsPlaying(false);
+        });
+      }
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) {
+      setIsMuted((prev) => !prev);
+      return;
+    }
+
+    const nextMuted = !isMuted;
+    video.muted = nextMuted;
+    if (!nextMuted) {
+      video.volume = 1;
+      const playPromise = video.play();
+      if (playPromise) {
+        playPromise.catch((error) => {
+          console.warn("[SparkScreen] Unmute playback blocked", error);
+        });
+      }
+    }
+    setIsMuted(nextMuted);
+  };
+
+  const handleProgressClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const video = videoRef.current;
+    const bar = progressBarRef.current;
+    if (!video || !bar) return;
+
+    const rect = bar.getBoundingClientRect();
+    const position = (event.clientX - rect.left) / rect.width;
+    const newTime = position * duration;
+    video.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleProgressDragStart = (event: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    handleProgressClick(event);
+  };
+
+  const handleProgressDragMove = (event: MouseEvent) => {
+    if (!isDragging || !progressBarRef.current || !videoRef.current) return;
+
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const position = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const newTime = position * duration;
+    videoRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleProgressDragEnd = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    window.addEventListener("mousemove", handleProgressDragMove);
+    window.addEventListener("mouseup", handleProgressDragEnd);
+
+    return () => {
+      window.removeEventListener("mousemove", handleProgressDragMove);
+      window.removeEventListener("mouseup", handleProgressDragEnd);
+    };
+  }, [isDragging]);
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="relative h-full w-full">
+      <video
+        ref={videoRef}
+        src={src}
+        poster={poster}
+        className="h-full w-full object-cover"
+        loop
+        playsInline
+        muted={isMuted}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onClick={togglePlayPause}
+      />
+
+      <button
+        onClick={toggleMute}
+        className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+12px)] z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-md transition-transform hover:scale-110"
+        aria-label={isMuted ? "Unmute" : "Mute"}
+      >
+        {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+      </button>
+
+      {/* PERFECT YOUTUBE SHORTS PROGRESS BAR */}
+      <div
+        ref={progressBarRef}
+        className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+6px)] left-4 right-4 z-20 h-[2px] cursor-pointer bg-white/20 rounded-full"
+        onClick={handleProgressClick}
+        onMouseDown={handleProgressDragStart}
+      >
+        <div
+          className="relative h-full rounded-full bg-[#ff0000] transition-all duration-0"
+          style={{ width: `${progress}%` }}
         >
-          {/* Title */}
-          <h2 className="text-white text-2xl font-extrabold leading-tight line-clamp-3 pr-20">
-            {article.title}
-          </h2>
-
-          {/* Snippet - with proper width to avoid icon overlap */}
-          <p className="text-white/90 text-base leading-relaxed line-clamp-4 pr-20 max-w-[calc(100%-80px)] mb-0">
-            {article.snippet || article.content}
-          </p>
-        </motion.div>
+          <span className="absolute -top-[3px] right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-white shadow-md" />
+        </div>
       </div>
     </div>
   );

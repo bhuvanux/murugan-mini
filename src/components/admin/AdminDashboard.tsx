@@ -1,148 +1,65 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   LayoutDashboard,
-  Image,
-  Music,
-  Sparkles,
-  Camera,
-  MessageCircle,
-  Database,
   Users,
-  Layout,
   Settings,
-  CreditCard,
   Search,
   Bell,
   ChevronDown,
-  ChevronUp,
-  MoreHorizontal,
   ChevronLeft,
   ChevronRight,
   BarChart3,
   Menu,
 } from "lucide-react";
-import { AdminDashboardHome } from "./AdminDashboardHome";
-import { AdminMediaManager } from "./AdminMediaManager";
-import { AdminWallpaperManager } from "./AdminWallpaperManager";
-import { AdminSparkleManager } from "./AdminSparkleManager";
-import { AdminPhotosManager } from "./AdminPhotosManager";
-import { AdminGuganAnalytics } from "./AdminGuganAnalytics";
-import { AdminAnalyticsCenter } from "./AdminAnalyticsCenter";
-import { AnalyticsTestingDashboard } from "./AnalyticsTestingDashboard";
-import { AdminStorageMonitor } from "./AdminStorageMonitor";
+import { AdminDashboardMain } from "./AdminDashboardMain";
 import { AdminUserManagement } from "./AdminUserManagement";
-import { AdminBannerManager } from "./AdminBannerManager";
-import { AdminSubscriptions } from "./AdminSubscriptions";
-import { AdminSettings } from "./AdminSettings";
-import { AnalyticsSetupGuide } from "./AnalyticsSetupGuide";
-import AdminAnalyticsUnified from "./AdminAnalyticsUnified";
-import AnalyticsTestSuite from "./AnalyticsTestSuite";
-import AnalyticsInstallationGuide from "./AnalyticsInstallationGuide";
-import TrackingSystemPage from "../../pages/TrackingSystemPage";
+import { AdminContent } from "./AdminContent";
+import { AdminAnalyticsHub } from "./AdminAnalyticsHub";
+import { AdminSettingsHub } from "./AdminSettingsHub";
+import { useAuth } from "../../contexts/AuthContext";
 
 type AdminView =
   | "dashboard"
-  | "banners"
-  | "wallpapers"
-  | "media"
-  | "sparkle"
-  | "photos"
-  | "ai-analytics"
-  | "analytics-setup"
-  | "analytics-center"
-  | "analytics-testing"
-  | "analytics-unified"
-  | "analytics-test-suite"
-  | "analytics-install"
-  | "tracking-system"
+  | "content"
+  | "analytics"
   | "users"
-  | "subscriptions"
-  | "storage"
   | "settings";
 
-export function AdminDashboard() {
+type AdminDashboardProps = {
+  onExitAdmin?: () => void;
+};
+
+export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
+  const { user, signOut } = useAuth();
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showMoreDropdown, setShowMoreDropdown] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isAnalyticsExpanded, setIsAnalyticsExpanded] = useState(false);
-
-  // Auto-expand Analytics Manager if any analytics sub-item is active
-  React.useEffect(() => {
-    if (analyticsSubMenuItems.some(item => item.id === activeView)) {
-      setIsAnalyticsExpanded(true);
-    }
-  }, [activeView]);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   // Main menu items (non-analytics)
   const mainMenuItems = [
-    { id: "dashboard" as AdminView, label: "Dashboard", icon: LayoutDashboard },
-    { id: "banners" as AdminView, label: "Banners", icon: Layout },
-    { id: "wallpapers" as AdminView, label: "Wallpapers", icon: Image },
-    { id: "media" as AdminView, label: "Media", icon: Music },
-    { id: "sparkle" as AdminView, label: "Sparkle", icon: Sparkles },
-    { id: "ai-analytics" as AdminView, label: "AI Analytics", icon: MessageCircle },
-    { id: "users" as AdminView, label: "Users", icon: Users },
-    { id: "subscriptions" as AdminView, label: "Subscriptions", icon: CreditCard },
-    { id: "storage" as AdminView, label: "Storage", icon: Database },
-    { id: "settings" as AdminView, label: "Settings", icon: Settings },
-  ];
-
-  // Analytics sub-menu items (under Analytics Manager)
-  const analyticsSubMenuItems = [
-    { id: "analytics-setup" as AdminView, label: "Analytics Setup", icon: Settings },
-    { id: "analytics-center" as AdminView, label: "Analytics Center", icon: BarChart3 },
-    { id: "analytics-testing" as AdminView, label: "Analytics Testing", icon: BarChart3 },
-    { id: "analytics-unified" as AdminView, label: "Analytics Unified", icon: BarChart3 },
-    { id: "analytics-test-suite" as AdminView, label: "Analytics Test Suite", icon: BarChart3 },
-    { id: "analytics-install" as AdminView, label: "Analytics Install", icon: BarChart3 },
-    { id: "tracking-system" as AdminView, label: "Tracking System", icon: BarChart3 },
-  ];
-
-  const menuItems = [
-    ...mainMenuItems,
-    ...analyticsSubMenuItems,
+    { id: "dashboard" as const, label: "Dashboard", icon: LayoutDashboard },
+    { id: "content" as const, label: "Content", icon: LayoutDashboard },
+    { id: "analytics" as const, label: "Analytics", icon: BarChart3 },
+    { id: "users" as const, label: "Users", icon: Users },
+    { id: "settings" as const, label: "Settings", icon: Settings },
   ];
 
   const renderContent = () => {
     switch (activeView) {
       case "dashboard":
-        return <AdminDashboardHome />;
-      case "banners":
-        return <AdminBannerManager />;
-      case "wallpapers":
-        return <AdminWallpaperManager />;
-      case "media":
-        return <AdminMediaManager />;
-      case "sparkle":
-        return <AdminSparkleManager />;
-      case "ai-analytics":
-        return <AdminGuganAnalytics />;
-      case "analytics-setup":
-        return <AnalyticsSetupGuide />;
-      case "analytics-center":
-        return <AdminAnalyticsCenter />;
-      case "analytics-testing":
-        return <AnalyticsTestingDashboard />;
-      case "analytics-unified":
-        return <AdminAnalyticsUnified />;
-      case "analytics-test-suite":
-        return <AnalyticsTestSuite />;
-      case "analytics-install":
-        return <AnalyticsInstallationGuide />;
-      case "tracking-system":
-        return <TrackingSystemPage />;
+        return <AdminDashboardMain />;
+      case "content":
+        return <AdminContent />;
+      case "analytics":
+        return <AdminAnalyticsHub />;
       case "users":
         return <AdminUserManagement />;
-      case "subscriptions":
-        return <AdminSubscriptions />;
-      case "storage":
-        return <AdminStorageMonitor />;
       case "settings":
-        return <AdminSettings />;
+        return <AdminSettingsHub />;
       default:
-        return <AdminDashboardHome />;
+        return <AdminDashboardMain />;
     }
   };
 
@@ -196,112 +113,7 @@ export function AdminDashboard() {
 
         {/* Navigation Menu */}
         <nav className="p-4 space-y-1 pb-24">
-          {/* Render items before Analytics Manager */}
-          {mainMenuItems.slice(0, 6).map((item) => {
-            const Icon = item.icon;
-            const isActive = activeView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                title={isSidebarCollapsed ? item.label : undefined}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${
-                  isActive
-                    ? "bg-white/20 text-white shadow-lg"
-                    : "text-green-100 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {!isSidebarCollapsed && (
-                  <>
-                    <span className="text-sm font-medium">{item.label}</span>
-                    {isActive && (
-                      <div className="ml-auto w-1 h-6 bg-yellow-400 rounded-full" />
-                    )}
-                  </>
-                )}
-                
-                {/* Tooltip on collapsed */}
-                {isSidebarCollapsed && (
-                  <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-                    {item.label}
-                    <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-r-4 border-r-gray-900" />
-                  </div>
-                )}
-                
-                {isActive && isSidebarCollapsed && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-yellow-400 rounded-r-full" />
-                )}
-              </button>
-            );
-          })}
-
-          {/* Analytics Manager - Collapsible Parent Menu */}
-          <div className="space-y-1">
-            <button
-              onClick={() => setIsAnalyticsExpanded(!isAnalyticsExpanded)}
-              title={isSidebarCollapsed ? "Analytics Manager" : undefined}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${
-                analyticsSubMenuItems.some(item => item.id === activeView)
-                  ? "bg-white/20 text-white shadow-lg"
-                  : "text-green-100 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <BarChart3 className="w-5 h-5 flex-shrink-0" />
-              {!isSidebarCollapsed && (
-                <>
-                  <span className="text-sm font-medium">Analytics Manager</span>
-                  {isAnalyticsExpanded ? (
-                    <ChevronUp className="w-4 h-4 ml-auto" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 ml-auto" />
-                  )}
-                </>
-              )}
-              
-              {/* Tooltip on collapsed */}
-              {isSidebarCollapsed && (
-                <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-                  Analytics Manager
-                  <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-r-4 border-r-gray-900" />
-                </div>
-              )}
-              
-              {analyticsSubMenuItems.some(item => item.id === activeView) && isSidebarCollapsed && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-yellow-400 rounded-r-full" />
-              )}
-            </button>
-
-            {/* Analytics Sub-Menu Items */}
-            {isAnalyticsExpanded && !isSidebarCollapsed && (
-              <div className="pl-4 space-y-1">
-                {analyticsSubMenuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeView === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveView(item.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
-                        isActive
-                          ? "bg-white/20 text-white"
-                          : "text-green-100 hover:bg-white/10 hover:text-white"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm">{item.label}</span>
-                      {isActive && (
-                        <div className="ml-auto w-1 h-5 bg-yellow-400 rounded-full" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Render remaining items after Analytics Manager */}
-          {mainMenuItems.slice(6).map((item) => {
+          {mainMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeView === item.id;
             return (
@@ -406,19 +218,51 @@ export function AdminDashboard() {
               </button>
 
               {/* Admin Profile */}
-              <button className="flex items-center gap-3 hover:bg-gray-100 rounded-lg px-3 py-2 transition-colors">
+              <button
+                onClick={() => setShowProfileMenu((v) => !v)}
+                className="flex items-center gap-3 hover:bg-gray-100 rounded-lg px-3 py-2 transition-colors"
+              >
                 <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
                   <span className="text-green-900 font-bold text-sm">A</span>
                 </div>
                 <div className="text-left">
                   <p className="text-gray-800 text-sm font-medium">Admin User</p>
-                  <p className="text-gray-500 text-xs">admin@murugan.app</p>
+                  <p className="text-gray-500 text-xs">{user?.email || ""}</p>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>
             </div>
           </div>
         </header>
+
+        {showProfileMenu && (
+          <div className="fixed top-16 right-6 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden">
+            <div className="p-3 border-b border-gray-200">
+              <p className="text-xs text-gray-500">Signed in as</p>
+              <p className="text-sm font-medium text-gray-800 break-all">{user?.email || ""}</p>
+            </div>
+            <div className="p-2">
+              <button
+                onClick={async () => {
+                  setShowProfileMenu(false);
+                  await signOut();
+                }}
+                className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100"
+              >
+                Sign out
+              </button>
+              <button
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  onExitAdmin?.();
+                }}
+                className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100"
+              >
+                Exit admin
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Notifications Dropdown */}
         {showNotifications && (

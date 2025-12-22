@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Analytics Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>Test Sparkle Analytics</h1>
+    <button onclick="testAnalytics('view')">Test View Tracking</button>
+    <button onclick="testAnalytics('like')">Test Like Tracking</button>
+    <button onclick="testAnalytics('share')">Test Share Tracking</button>
+    <div id="results"></div>
+
+    <script>
+        async function testAnalytics(eventType) {
+            const resultsDiv = document.getElementById('results');
+            const testId = 'test-sparkle-' + Date.now();
+            
+            try {
+                console.log(`Testing ${eventType} for ${testId}`);
+                
+                const response = await fetch('https://lnherrwzjtemrvzahppg.supabase.co/functions/v1/make-server-4a075ebc/api/analytics/track', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuaGVycnd6anRlbXJ2emFocHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTkyNTksImV4cCI6MjA3OTU3NTI1OX0.Okhete2Bda3oXFVjh8-Xg5Xt-Rd_I1nwcq0kapJuAuI'
+                    },
+                    body: JSON.stringify({
+                        module_name: 'sparkle',
+                        item_id: testId,
+                        event_type: eventType,
+                        metadata: { test: true, timestamp: new Date().toISOString() }
+                    })
+                });
+
+                const data = await response.json();
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `result ${response.ok ? 'success' : 'error'}`;
+                resultDiv.innerHTML = `
+                    <h3>${eventType.toUpperCase()} Test</h3>
+                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                    <p><strong>Success:</strong> ${data.success}</p>
+                    <p><strong>Tracked:</strong> ${data.tracked}</p>
+                    <p><strong>Response:</strong> <pre>${JSON.stringify(data, null, 2)}</pre></p>
+                `;
+                resultsDiv.appendChild(resultDiv);
+                
+            } catch (error) {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>${eventType.toUpperCase()} Test - ERROR</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `;
+                resultsDiv.appendChild(resultDiv);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -4,7 +4,7 @@
  * Run tests, verify IP-based uniqueness, check all endpoints
  */
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -16,22 +16,16 @@ import {
   AlertCircle,
   Play,
   RefreshCw,
-  Database,
-  Server,
-  Code,
   Activity,
   Users,
   Eye,
   Heart,
-  Download,
-  Share2,
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
 import { analyticsTracker } from "../../utils/analytics/useAnalytics";
 import { createClient } from "@supabase/supabase-js";
-
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;
+import { fetchAdminResponseWith404Fallback } from "../../utils/adminAPI";
 
 interface TestResult {
   name: string;
@@ -170,7 +164,7 @@ export function AnalyticsTestingDashboard() {
     updateTest("Config Seeding", { status: "running", message: "Checking config..." });
 
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/admin/config`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/config`, {
         headers: { Authorization: `Bearer ${publicAnonKey}` },
       });
 
@@ -286,11 +280,11 @@ export function AnalyticsTestingDashboard() {
     updateTest("Check Endpoint", { status: "running", message: "Testing check..." });
 
     try {
-      const response = await fetch(
-        `${API_BASE}/api/analytics/check/wallpaper/${testItemId}/view`,
+      const response = await fetchAdminResponseWith404Fallback(
+        `/api/analytics/check/wallpaper/${testItemId}/view`,
         {
           headers: { Authorization: `Bearer ${publicAnonKey}` },
-        }
+        },
       );
 
       const data = await response.json();
@@ -407,7 +401,7 @@ export function AnalyticsTestingDashboard() {
     updateTest("Admin Dashboard", { status: "running", message: "Testing dashboard..." });
 
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/admin/dashboard`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/dashboard`, {
         headers: { Authorization: `Bearer ${publicAnonKey}` },
       });
 
@@ -437,7 +431,7 @@ export function AnalyticsTestingDashboard() {
 
     try {
       // Get config
-      const getResponse = await fetch(`${API_BASE}/api/analytics/admin/config`, {
+      const getResponse = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/config`, {
         headers: { Authorization: `Bearer ${publicAnonKey}` },
       });
 
@@ -448,7 +442,7 @@ export function AnalyticsTestingDashboard() {
       }
 
       // Try to update config
-      const updateResponse = await fetch(`${API_BASE}/api/analytics/admin/config`, {
+      const updateResponse = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/config`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -496,7 +490,7 @@ export function AnalyticsTestingDashboard() {
       const statsBefore = await analyticsTracker.getStats("wallpaper", testId);
 
       // Reset
-      const response = await fetch(`${API_BASE}/api/analytics/admin/reset`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/reset`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,17 +1,53 @@
-/* Tamil Fonts - TAU Paalai and TAU Nilavu */
-@import url('https://fonts.cdnfonts.com/css/tau-paalai');
-@import url('https://fonts.cdnfonts.com/css/tau-nilavu');
-
-/* Inter Font for English - ALL WEIGHTS */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
+/* Tamil Fonts - TAU Paalai and TAU Nilavu */
+/* @import url('https://fonts.cdnfonts.com/css/tau-paalai'); */
+/* @import url('https://fonts.cdnfonts.com/css/tau-nilavu'); */
+
+@font-face {
+  font-family: 'TAU-Paalai';
+  src: url('/fonts/TAU-Paalai.ttf') format('truetype'),
+       url('https://www.tamilvu.org/tkbd/tau_fonts/TAU-Paalai.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TAU-Paalai';
+  src: url('/fonts/TAU-Paalai-Bold.ttf') format('truetype'),
+       url('https://www.tamilvu.org/tkbd/tau_fonts/TAU-Paalai%20Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TAU-Paalai';
+  src: url('/fonts/TAU-Paalai-Italic.ttf') format('truetype'),
+       url('https://www.tamilvu.org/tkbd/tau_fonts/TAU-Paalai%20Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TAU-Nilavu';
+  src: url('/fonts/TAU-Nilavu.ttf') format('truetype'),
+       url('https://www.tamilvu.org/tkbd/tau_fonts/TAU-Nilavu.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --font-size: 16px;
+  --font-size: clamp(0.875rem, 3.2vw, 1rem);
   /* PRIMARY RULE: English = Inter, Tamil = TAU-Paalai */
-  --font-tamil: 'TAU-Paalai', sans-serif;         /* Tamil uses TAU-Paalai */
-  --font-tamil-bold: 'TAU-Paalai', sans-serif;     /* Legacy support */
-  --font-tamil-regular: 'TAU-Paalai', sans-serif;  /* Legacy support - NOW USES TAU-Paalai */
+  --font-tamil: 'TAU-Paalai', 'TAU Paalai', 'Tau Paalai', sans-serif;         /* Tamil uses TAU-Paalai */
+  --font-tamil-bold: 'TAU-Paalai', 'TAU Paalai', 'Tau Paalai', sans-serif;     /* Legacy support */
+  --font-tamil-regular: 'TAU-Paalai', 'TAU Paalai', 'Tau Paalai', sans-serif;  /* Legacy support - NOW USES TAU-Paalai */
   --font-english: 'Inter', sans-serif;             /* English uses Inter */
+  --font-app: 'Inter', 'TAU-Paalai', 'TAU Paalai', 'Tau Paalai', sans-serif;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -196,49 +232,63 @@
 
 html {
   font-size: var(--font-size);
-  font-family: var(--font-english);
+  font-family: var(--font-app);
 }
 
 /* FORCE ALL ELEMENTS TO USE INTER BY DEFAULT */
 * {
-  font-family: var(--font-english);
+  font-family: var(--font-app);
 }
 
 /* Global Font Utility Classes */
 @layer utilities {
+  /* Responsive overrides for Tailwind arbitrary pixel font sizes */
+  .text-\[8px\] { font-size: 0.5rem; }
+  .text-\[9px\] { font-size: 0.5625rem; }
+  .text-\[10px\] { font-size: 0.625rem; }
+  .text-\[11px\] { font-size: 0.6875rem; }
+  .text-\[12px\] { font-size: 0.75rem; }
+  .text-\[13px\] { font-size: 0.8125rem; }
+  .text-\[14px\] { font-size: 0.875rem; }
+  .text-\[15px\] { font-size: 0.9375rem; }
+  .text-\[16px\] { font-size: 1rem; }
+  .text-\[18px\] { font-size: 1.125rem; }
+  .text-\[20px\] { font-size: 1.25rem; }
+  .text-\[28px\] { font-size: 1.75rem; }
+
   /* Inter Text Styles - Global Admin Panel Typography */
   .text-inter-regular-14 {
     font-family: var(--font-english);
     font-weight: 400;
-    font-size: 14px;
+    font-size: 0.875rem;
     line-height: 1.5;
   }
   
   .text-inter-regular-15 {
     font-family: var(--font-english);
     font-weight: 400;
-    font-size: 15px;
+    font-size: 0.9375rem;
     line-height: 1.5;
   }
   
   .text-inter-medium-16 {
     font-family: var(--font-english);
     font-weight: 500;
-    font-size: 16px;
+    font-size: 1rem;
     line-height: 1.5;
   }
   
   .text-inter-semibold-18 {
     font-family: var(--font-english);
     font-weight: 600;
-    font-size: 18px;
+    font-size: 1.125rem;
     line-height: 1.4;
   }
   
   .text-inter-bold-20 {
     font-family: var(--font-english);
     font-weight: 700;
-    font-size: 20px;
+    font-size: 1.25rem;
     line-height: 1.3;
   }
   
@@ -276,7 +326,7 @@ html {
   
   /* Auto-detect font based on Unicode */
   .font-auto {
-    font-family: var(--font-english);
+    font-family: var(--font-app);
   }
   
   .font-auto:lang(ta) {

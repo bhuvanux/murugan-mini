@@ -9,7 +9,13 @@ const tracking = new Hono();
 tracking.use('*', cors({
   origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: [
+    'Content-Type',
+    'Authorization',
+    'apikey',
+    'X-User-Token',
+    'X-Client-Info',
+  ],
 }));
 
 const supabase = createClient(

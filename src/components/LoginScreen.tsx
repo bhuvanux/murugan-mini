@@ -1,14 +1,12 @@
-import image_aefa8dc74d7f949c3233faf44a28b2568db3db4f from "figma:asset/aefa8dc74d7f949c3233faf44a28b2568db3db4f.png";
-import image_d5f2b8db8be54cd7632e2a54ce5388d6337b0c00 from "figma:asset/d5f2b8db8be54cd7632e2a54ce5388d6337b0c00.png";
+import splashLogo from "../custom-assets/splash-logo.png";
+import kidMurugan from "../custom-assets/kid-murugan.png";
 import React, { useState } from "react";
-import imgMurugan from "figma:asset/8e5811f67c54e8087eb0692bd69aff3dac1f38ec.png";
-import imgLogoShape from "figma:asset/b166eb00853c2e20d074e43e510909bfd1339cf8.png";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Info, CheckCircle, Lock } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 export function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -69,7 +67,7 @@ export function LoginScreen() {
         {/* Logo Background Shape */}
         <div className="relative w-[260px] h-[260px] flex items-start justify-center">
           <img
-            src={image_aefa8dc74d7f949c3233faf44a28b2568db3db4f}
+            src={splashLogo}
             alt=""
             className="absolute inset-0 w-full h-full object-contain p-[0px] mt-[58px] mr-[0px] mb-[0px] ml-[0px]"
           />

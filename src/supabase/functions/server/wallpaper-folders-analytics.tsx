@@ -582,6 +582,36 @@ export async function getAggregateAnalytics(c: Context) {
     const totalLikes = events.filter(e => e.event_type === 'like').length;
     const totalShares = events.filter(e => e.event_type === 'share').length;
 
+    let sparkleAggregate: { views: number; likes: number; shares: number } | null = null;
+    if (contentType === "sparkle") {
+      const sparkleTables = ["sparkles", "sparkle"];
+      for (const tableName of sparkleTables) {
+        const { data: sparkleRows, error: sparkleError } = await supabase
+          .from(tableName)
+          .select("view_count, like_count, share_count, created_at")
+          .gte("created_at", startDate.toISOString())
+          .lte("created_at", endDate.toISOString());
+
+        if (sparkleError) {
+          console.warn(`[Aggregate Analytics] Unable to read ${tableName}:`, sparkleError.message || sparkleError);
+          continue;
+        }
+
+        if (sparkleRows) {
+          sparkleAggregate = sparkleRows.reduce(
+            (acc, row) => {
+              acc.views += Number(row.view_count) || 0;
+              acc.likes += Number(row.like_count) || 0;
+              acc.shares += Number(row.share_count) || 0;
+              return acc;
+            },
+            { views: 0, likes: 0, shares: 0 },
+          );
+          break;
+        }
+      }
+    }
+
     console.log(`[Aggregate Analytics] Results for ${contentType} - Views: ${totalViews}, Clicks: ${totalClicks}, Downloads: ${totalDownloads}, Likes: ${totalLikes}, Shares: ${totalShares}`);
 
     // Return different metrics based on content type
@@ -595,12 +625,17 @@ export async function getAggregateAnalytics(c: Context) {
     };
 
     // Add content-specific metrics
-    if (contentType === "banner") {
+    if (contentType === "banner" || contentType === "temple") {
       data.total_clicks = totalClicks;
     } else if (contentType === "wallpaper") {
       data.total_downloads = totalDownloads;
       data.total_likes = totalLikes;
       data.total_shares = totalShares;
+    } else if (contentType === "sparkle") {
+      const sparkleTotals = sparkleAggregate ?? { views: totalViews, likes: totalLikes, shares: totalShares };
+      data.total_views = sparkleTotals.views;
+      data.total_likes = sparkleTotals.likes;
+      data.total_shares = sparkleTotals.shares;
     }
 
     return c.json({

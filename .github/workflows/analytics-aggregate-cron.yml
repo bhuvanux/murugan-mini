@@ -1,0 +1,80 @@
+name: Analytics Aggregate Cron
+
+on:
+  schedule:
+    # Hourly (UTC)
+    - cron: "0 * * * *"
+    # Daily (UTC) at 00:10
+    - cron: "10 0 * * *"
+    # Weekly purge (UTC) Sunday 00:30
+    - cron: "30 0 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Aggregation mode"
+        required: false
+        default: "hourly"
+        type: choice
+        options:
+          - hourly
+          - daily
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decide aggregation mode
+        id: mode
+        shell: bash
+        run: |
+          if [ "${{ github.event.schedule }}" = "30 0 * * 0" ]; then
+            echo "value=purge" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # github.event.schedule is the cron string that triggered the workflow
+          if [ "${{ github.event.schedule }}" = "10 0 * * *" ]; then
+            echo "value=daily" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=hourly" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Call analytics aggregate endpoint
+        env:
+          ANALYTICS_AGGREGATE_URL: ${{ secrets.ANALYTICS_AGGREGATE_URL }}
+          ANALYTICS_CRON_SECRET: ${{ secrets.ANALYTICS_CRON_SECRET }}
+        run: |
+          if [ -z "$ANALYTICS_AGGREGATE_URL" ]; then
+            echo "Missing secret: ANALYTICS_AGGREGATE_URL" >&2
+            exit 1
+          fi
+
+          MODE="${{ steps.mode.outputs.value }}"
+          if [ "$MODE" = "purge" ]; then
+            TARGET_PATH="/api/analytics/purge"
+          elif [ "$MODE" = "daily" ]; then
+            TARGET_PATH="/api/analytics/aggregate-daily"
+          else
+            TARGET_PATH="/api/analytics/aggregate-hourly"
+          fi
+
+          # Backward compatible: if ANALYTICS_AGGREGATE_URL points at /api/analytics/aggregate,
+          # rewrite it to the specific endpoint. Otherwise, treat it as a base URL.
+          if echo "$ANALYTICS_AGGREGATE_URL" | grep -q "/api/analytics/aggregate$"; then
+            TARGET_URL="${ANALYTICS_AGGREGATE_URL%/api/analytics/aggregate}$TARGET_PATH"
+          else
+            TARGET_URL="$ANALYTICS_AGGREGATE_URL"
+            # Ensure we don't end up with double slashes
+            TARGET_URL="${TARGET_URL%/}$TARGET_PATH"
+          fi
+
+          curl -sS -X POST "$TARGET_URL" \
+            -H "Content-Type: application/json" \
+            -H "x-analytics-cron-secret: $ANALYTICS_CRON_SECRET" \
+            -d "{}" \
+            | cat

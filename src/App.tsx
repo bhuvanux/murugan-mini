@@ -2,40 +2,52 @@ import React, { useState } from "react";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { SplashScreen } from "./components/SplashScreen";
 import { LoginScreen } from "./components/LoginScreen";
-import { PhoneLogin } from "./components/PhoneLogin";
 import { MasonryFeed } from "./components/MasonryFeed";
 import { WallpaperFullView } from "./components/WallpaperFullView";
 import { SongsScreen } from "./components/SongsScreen";
 import { SparkScreen } from "./components/SparkScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
-import { AskGuganScreen } from "./components/AskGuganScreen";
-import { AskGuganChatScreen } from "./components/AskGuganChatScreen";
 import { SavedScreen } from "./components/SavedScreen";
 import { NotificationsScreen } from "./components/NotificationsScreen";
 import { AccountSettingsScreen } from "./components/AccountSettingsScreen";
 import { ContactScreen } from "./components/ContactScreen";
 import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
 import { SearchBar } from "./components/SearchBar";
-import { AdminUpload } from "./components/AdminUpload";
 import { AdminLauncher } from "./components/AdminLauncher";
 import { AdminDashboard } from "./components/admin/AdminDashboard";
 import { SetupGuide } from "./components/SetupGuide";
 import { MuruganLoader } from "./components/MuruganLoader";
 import { ServerWarmup } from "./components/ServerWarmup";
 import { AppHeader } from "./components/AppHeader";
-import { MediaItem, userAPI } from "./utils/api/client";
+import { GreenHeader } from "./components/GreenHeader";
+import { adService } from "./services/AdService";
+
+import { MediaItem } from "./utils/api/client";
 import { supabase } from "./utils/supabase/client";
+import { flushAnalytics, setAnalyticsRoute, trackEvent } from "./utils/analytics/trackEvent";
+import { startEngagementTracking } from "./utils/analytics/engagement";
+import { endSession, startSession } from "./utils/analytics/analyticsSession";
+import { hasStoredAnalyticsConsent, setAnalyticsConsent } from "./utils/analytics/consent";
+import { ensureControlPollingStarted } from "./core/control/controlSnapshot";
 import {
+
   ImageIcon,
   Music,
   Sparkles,
   User,
-  Loader2,
-  ArrowLeft,
-  MessageCircle,
 } from "lucide-react";
 
-type Tab = "gugan" | "photos" | "songs" | "spark" | "profile" | "admin" | "saved" | "notifications" | "account" | "contact" | "privacy";
+type Tab =
+  | "photos"
+  | "songs"
+  | "spark"
+  | "profile"
+  | "admin"
+  | "saved"
+  | "notifications"
+  | "account"
+  | "contact"
+  | "privacy";
 type AppMode = "launcher" | "mobile" | "admin";
 
 function AppContent() {
@@ -43,23 +55,127 @@ function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("launcher");
-  const [activeTab, setActiveTab] = useState<Tab>("gugan");
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [chatListRefreshKey, setChatListRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<Tab>("photos");
+  const [showAnalyticsConsentBanner, setShowAnalyticsConsentBanner] = useState(false);
+  const prevTabRef = React.useRef<Tab>("photos");
+  const engagementRef = React.useRef<ReturnType<typeof startEngagementTracking> | null>(null);
   const [selectedMedia, setSelectedMedia] =
     useState<MediaItem | null>(null);
   const [allMediaItems, setAllMediaItems] = useState<MediaItem[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [favorites, setFavorites] = useState<Set<string>>(
-    new Set(),
-  );
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [tablesExist, setTablesExist] = useState<
     boolean | null
   >(null);
 
+
+  React.useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      try {
+        const el = document.scrollingElement || document.documentElement;
+        el?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+      } catch {
+        // ignore
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    ensureControlPollingStarted();
+
+    // Initialize AdMob
+    adService.initialize().catch(err => {
+      console.error('AdMob init error in App:', err);
+    });
+
+    try {
+      if (!hasStoredAnalyticsConsent()) {
+        setShowAnalyticsConsentBanner(true);
+      }
+    } catch {
+      // ignore
+    }
+
+    if (!engagementRef.current) {
+      engagementRef.current = startEngagementTracking({
+        getRoute: () => prevTabRef.current,
+        idleMs: 60000,
+      });
+    }
+
+    startSession();
+    setAnalyticsRoute(activeTab);
+
+    trackEvent("app_open", { route: window.location.pathname });
+    trackEvent("page_enter", { route: activeTab, page: activeTab });
+    if (activeTab === "photos") {
+      trackEvent("dashboard_view", { route: activeTab });
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        trackEvent("app_background", { route: window.location.pathname });
+        endSession();
+        flushAnalytics();
+      }
+    };
+
+    const onBeforeUnload = () => {
+      trackEvent("app_close", { route: window.location.pathname });
+      endSession();
+      flushAnalytics();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("beforeunload", onBeforeUnload);
+
+    const onNavigate = (e: any) => {
+      try {
+        const tab = e?.detail?.tab;
+        if (typeof tab === "string" && tab.length > 0) {
+          setActiveTab(tab as Tab);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener("murugan:navigate", onNavigate as any);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("murugan:navigate", onNavigate as any);
+      engagementRef.current?.stop();
+      engagementRef.current = null;
+      endSession();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    const prev = prevTabRef.current;
+    if (prev === activeTab) return;
+
+    trackEvent("tab_switch", { from: prev, to: activeTab });
+    trackEvent("page_exit", { route: prev, page: prev });
+    trackEvent("page_enter", { route: activeTab, page: activeTab });
+    if (activeTab === "photos") {
+      trackEvent("dashboard_view", { route: activeTab });
+    }
+
+    prevTabRef.current = activeTab;
+    engagementRef.current?.setRoute(activeTab);
+    setAnalyticsRoute(activeTab);
+  }, [activeTab]);
+
   React.useEffect(() => {
     if (user) {
+      setShowLogin(false);
+      setActiveTab("photos");
       checkTablesAndLoadFavorites();
     }
   }, [user]);
@@ -91,90 +207,14 @@ function AppContent() {
       }
 
       setTablesExist(true);
-      loadFavorites();
     } catch (error: any) {
       console.error("Error checking tables:", error);
-    }
-  };
-
-  const loadFavorites = async () => {
-    try {
-      // Load favorites from localStorage
-      const savedFavorites = localStorage.getItem('user_favorites');
-      if (savedFavorites) {
-        setFavorites(new Set(JSON.parse(savedFavorites)));
-      }
-    } catch (error) {
-      console.error('Error loading favorites:', error);
-    }
-  };
-
-  const toggleFavorite = async (mediaId: string) => {
-    const isFavorited = favorites.has(mediaId);
-
-    try {
-      // Update local state immediately (optimistic update)
-      setFavorites((prev) => {
-        const newSet = new Set(prev);
-        if (isFavorited) {
-          newSet.delete(mediaId);
-        } else {
-          newSet.add(mediaId);
-        }
-        // Save to localStorage
-        localStorage.setItem('user_favorites', JSON.stringify(Array.from(newSet)));
-        return newSet;
-      });
-
-      // Call backend API to track like
-      if (!isFavorited) {
-        try {
-          await userAPI.likeMedia(mediaId);
-          console.log('[App] Like tracked successfully');
-        } catch (apiError: any) {
-          console.error('[App] Failed to track like:', apiError);
-        }
-      }
-    } catch (error: any) {
-      console.error('Error toggling favorite:', error);
-      // Revert on error
-      setFavorites((prev) => {
-        const newSet = new Set(prev);
-        if (isFavorited) {
-          newSet.add(mediaId);
-        } else {
-          newSet.delete(mediaId);
-        }
-        localStorage.setItem('user_favorites', JSON.stringify(Array.from(newSet)));
-        return newSet;
-      });
     }
   };
 
   const handleMediaSelect = (media: MediaItem, allMedia: MediaItem[]) => {
     setSelectedMedia(media);
     setAllMediaItems(allMedia);
-  };
-
-  const handleMediaChange = (media: MediaItem) => {
-    setSelectedMedia(media);
-  };
-
-  // ✅ NEW: Update media item in the allMediaItems array
-  const handleMediaUpdate = (mediaId: string, updates: Partial<MediaItem>) => {
-    if (allMediaItems) {
-      const updatedMedia = allMediaItems.map(item => 
-        item.id === mediaId ? { ...item, ...updates } : item
-      );
-      setAllMediaItems(updatedMedia);
-      
-      // Also update selectedMedia if it's the one being updated
-      if (selectedMedia?.id === mediaId) {
-        setSelectedMedia({ ...selectedMedia, ...updates });
-      }
-      
-      console.log(`[App] ✅ Updated media ${mediaId} with:`, updates);
-    }
   };
 
   const closeMediaDetail = () => {
@@ -207,7 +247,7 @@ function AppContent() {
   if (showSetupGuide && tablesExist === false) {
     return (
       <SetupGuide
-        onComplete={() => {
+        onClose={() => {
           setShowSetupGuide(false);
           setTablesExist(null);
           checkTablesAndLoadFavorites();
@@ -225,13 +265,23 @@ function AppContent() {
     );
   }
 
+  const skipAuth = import.meta.env.DEV || import.meta.env.VITE_SKIP_AUTH === "true";
+  const skipAdminAuth = import.meta.env.VITE_SKIP_ADMIN_AUTH === "true";
+
   // Show Admin Dashboard
   if (appMode === "admin") {
+    if (!skipAdminAuth && !user) {
+      return <LoginScreen />;
+    }
     return (
       <div className="min-h-screen bg-gray-50">
-        <AdminDashboard />
+        <AdminDashboard onExitAdmin={() => setAppMode("launcher")} />
       </div>
     );
+  }
+
+  if (!skipAuth && (!user || showLogin)) {
+    return <LoginScreen />;
   }
 
   // Mobile App Mode
@@ -241,15 +291,11 @@ function AppContent() {
       return (
         <div className="min-h-screen bg-white">
           {/* Header */}
-          <div className="fixed top-0 left-0 right-0 z-40 bg-[#0d5e38] px-4 py-4 flex items-center gap-3">
-            <button
-              onClick={() => setActiveTab("profile")}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-white" />
-            </button>
-            <h1 className="text-white flex-1">Saved Items</h1>
-          </div>
+          <GreenHeader
+            title="Saved Items"
+            onBack={() => setActiveTab("profile")}
+            titleFontFamily="var(--font-english)"
+          />
 
           {/* Content */}
           <div className="pt-16">
@@ -263,15 +309,11 @@ function AppContent() {
       return (
         <div className="min-h-screen bg-white">
           {/* Header */}
-          <div className="fixed top-0 left-0 right-0 z-40 bg-[#0d5e38] px-4 py-4 flex items-center gap-3">
-            <button
-              onClick={() => setActiveTab("profile")}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-white" />
-            </button>
-            <h1 className="text-white flex-1">Notifications</h1>
-          </div>
+          <GreenHeader
+            title="Notifications"
+            onBack={() => setActiveTab("profile")}
+            titleFontFamily="var(--font-english)"
+          />
 
           {/* Content */}
           <div className="pt-16">
@@ -284,18 +326,11 @@ function AppContent() {
     if (activeTab === "account") {
       return (
         <div className="min-h-screen bg-white">
-          {/* Header without kolam */}
-          <AppHeader title="" showKolam={false}>
-            <button
-              onClick={() => setActiveTab("profile")}
-              className="absolute left-4 top-4 p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-white" />
-            </button>
-            <h1 className="text-white text-center" style={{ fontFamily: 'var(--font-english)', fontWeight: 600, fontSize: '18px' }}>
-              Account Settings
-            </h1>
-          </AppHeader>
+          <GreenHeader
+            title="Account Settings"
+            onBack={() => setActiveTab("profile")}
+            titleFontFamily="var(--font-english)"
+          />
 
           {/* Content */}
           <AccountSettingsScreen />
@@ -307,15 +342,11 @@ function AppContent() {
       return (
         <div className="min-h-screen bg-white">
           {/* Header */}
-          <div className="fixed top-0 left-0 right-0 z-40 bg-[#0d5e38] px-4 py-4 flex items-center gap-3">
-            <button
-              onClick={() => setActiveTab("profile")}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-white" />
-            </button>
-            <h1 className="text-white flex-1">Contact Us</h1>
-          </div>
+          <GreenHeader
+            title="Contact Us"
+            onBack={() => setActiveTab("profile")}
+            titleFontFamily="var(--font-english)"
+          />
 
           {/* Content */}
           <div className="pt-16">
@@ -329,15 +360,11 @@ function AppContent() {
       return (
         <div className="min-h-screen bg-white">
           {/* Header */}
-          <div className="fixed top-0 left-0 right-0 z-40 bg-[#0d5e38] px-4 py-4 flex items-center gap-3">
-            <button
-              onClick={() => setActiveTab("profile")}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-white" />
-            </button>
-            <h1 className="text-white flex-1">Privacy Policy</h1>
-          </div>
+          <GreenHeader
+            title="Privacy Policy"
+            onBack={() => setActiveTab("profile")}
+            titleFontFamily="var(--font-english)"
+          />
 
           {/* Content */}
           <div className="pt-16">
@@ -347,28 +374,7 @@ function AppContent() {
       );
     }
 
-    // Main tabs
-    if (activeTab === "gugan") {
-      if (activeChatId) {
-        return (
-          <AskGuganChatScreen
-            chatId={activeChatId}
-            onBack={() => {
-              setActiveChatId(null);
-              setChatListRefreshKey((prev) => prev + 1);
-            }}
-            userId={user?.id}
-          />
-        );
-      }
-      return (
-        <AskGuganScreen
-          key={chatListRefreshKey}
-          onStartChat={(chatId) => setActiveChatId(chatId)}
-          userId={user?.id}
-        />
-      );
-    }
+
 
     if (activeTab === "photos") {
       return (
@@ -418,10 +424,62 @@ function AppContent() {
     return null;
   };
 
+  const showBottomNav = true;
+
+  const contentBackground =
+    activeTab === "spark" ? "#000" : activeTab === "photos" ? "#fff" : "#F2FFF6";
+
   return (
     <div className="relative min-h-screen bg-white">
       {/* Main Content */}
-      {renderActiveScreen()}
+      <div
+        style={{
+          paddingBottom: showBottomNav ? "calc(120px + env(safe-area-inset-bottom, 0px))" : undefined,
+          background: contentBackground,
+        }}
+      >
+        {renderActiveScreen()}
+      </div>
+
+      {showAnalyticsConsentBanner && (
+        <div
+          className="fixed left-4 right-4 z-50 rounded-2xl border border-[#E6F0EA] bg-white shadow-[0px_10px_25px_rgba(0,0,0,0.12)]"
+          style={{
+            bottom: showBottomNav ? "calc(96px + env(safe-area-inset-bottom, 0px))" : "16px",
+          }}
+        >
+          <div className="p-4">
+            <div
+              className="text-sm font-semibold text-gray-900"
+              style={{ fontFamily: "var(--font-tamil-bold)" }}
+            >
+              இந்த செயலியில் பயன்பாட்டை மேம்படுத்த பயன்பாட்டு தகவல்கள் சேகரிக்கப்படுகின்றன.
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                className="flex-1 rounded-xl bg-[#0d5e38] px-4 py-2 text-sm font-semibold text-white"
+                onClick={() => {
+                  setAnalyticsConsent({ analytics: true });
+                  setShowAnalyticsConsentBanner(false);
+                }}
+              >
+                சரி
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-xl border border-[#E6F0EA] bg-white px-4 py-2 text-sm font-semibold text-gray-800"
+                onClick={() => {
+                  setAnalyticsConsent({ analytics: false });
+                  setShowAnalyticsConsentBanner(false);
+                }}
+              >
+                வேண்டாம்
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Media Detail Overlay */}
       {selectedMedia && allMediaItems && (
@@ -433,57 +491,30 @@ function AppContent() {
       )}
 
       {/* Bottom Navigation - Hide on Chat screens only */}
-      {!activeChatId && (
+      {showBottomNav && (
         <div
           className="fixed bottom-0 left-0 right-0 z-40 shadow-[0px_-4px_20px_rgba(0,0,0,0.15)] overflow-hidden"
           style={{ background: "#0d5e38" }}
         >
           {/* Tab Buttons */}
           <div className="flex justify-around items-center px-2 pt-[12px] pb-[16px] pr-[0px] pl-[0px]">
-            {/* Ask Gugan Tab */}
-            <button
-              onClick={() => {
-                setActiveTab("gugan");
-                setActiveChatId(null);
-              }}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "gugan"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
-              }`}
-            >
-              <MessageCircle
-                className={`w-6 h-6 ${
-                  activeTab === "gugan" ? "text-white" : "text-white/70"
-                }`}
-              />
-              <span
-                className={`text-xs ${
-                  activeTab === "gugan" ? "text-white" : "text-white/70"
-                }`}
-              >
-                Ask Gugan
-              </span>
-            </button>
+
 
             {/* Photos Tab */}
             <button
               onClick={() => setActiveTab("photos")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "photos"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
-              }`}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "photos"
+                ? "bg-white/20 scale-105"
+                : "hover:bg-white/10"
+                }`}
             >
               <ImageIcon
-                className={`w-6 h-6 ${
-                  activeTab === "photos" ? "text-white" : "text-white/70"
-                }`}
+                className={`w-6 h-6 ${activeTab === "photos" ? "text-white" : "text-white/70"
+                  }`}
               />
               <span
-                className={`text-xs ${
-                  activeTab === "photos" ? "text-white" : "text-white/70"
-                }`}
+                className={`text-xs ${activeTab === "photos" ? "text-white" : "text-white/70"
+                  }`}
               >
                 Photos
               </span>
@@ -492,21 +523,18 @@ function AppContent() {
             {/* Songs Tab */}
             <button
               onClick={() => setActiveTab("songs")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "songs"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
-              }`}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "songs"
+                ? "bg-white/20 scale-105"
+                : "hover:bg-white/10"
+                }`}
             >
               <Music
-                className={`w-6 h-6 ${
-                  activeTab === "songs" ? "text-white" : "text-white/70"
-                }`}
+                className={`w-6 h-6 ${activeTab === "songs" ? "text-white" : "text-white/70"
+                  }`}
               />
               <span
-                className={`text-xs ${
-                  activeTab === "songs" ? "text-white" : "text-white/70"
-                }`}
+                className={`text-xs ${activeTab === "songs" ? "text-white" : "text-white/70"
+                  }`}
               >
                 Songs
               </span>
@@ -515,21 +543,18 @@ function AppContent() {
             {/* Spark Tab */}
             <button
               onClick={() => setActiveTab("spark")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "spark"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
-              }`}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "spark"
+                ? "bg-white/20 scale-105"
+                : "hover:bg-white/10"
+                }`}
             >
               <Sparkles
-                className={`w-6 h-6 ${
-                  activeTab === "spark" ? "text-white" : "text-white/70"
-                }`}
+                className={`w-6 h-6 ${activeTab === "spark" ? "text-white" : "text-white/70"
+                  }`}
               />
               <span
-                className={`text-xs ${
-                  activeTab === "spark" ? "text-white" : "text-white/70"
-                }`}
+                className={`text-xs ${activeTab === "spark" ? "text-white" : "text-white/70"
+                  }`}
               >
                 Spark
               </span>
@@ -538,21 +563,18 @@ function AppContent() {
             {/* Profile Tab */}
             <button
               onClick={() => setActiveTab("profile")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "profile"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
-              }`}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "profile"
+                ? "bg-white/20 scale-105"
+                : "hover:bg-white/10"
+                }`}
             >
               <User
-                className={`w-6 h-6 ${
-                  activeTab === "profile" ? "text-white" : "text-white/70"
-                }`}
+                className={`w-6 h-6 ${activeTab === "profile" ? "text-white" : "text-white/70"
+                  }`}
               />
               <span
-                className={`text-xs ${
-                  activeTab === "profile" ? "text-white" : "text-white/70"
-                }`}
+                className={`text-xs ${activeTab === "profile" ? "text-white" : "text-white/70"
+                  }`}
               >
                 Profile
               </span>

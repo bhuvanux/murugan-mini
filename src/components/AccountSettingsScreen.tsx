@@ -5,8 +5,10 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Switch } from './ui/switch';
 import { User, Mail, Phone, Lock, Trash2, Camera, Upload, Database } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { getAnalyticsConsent, setAnalyticsConsent } from '../utils/analytics/consent';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,8 +30,9 @@ import {
 } from './ui/dialog';
 
 export function AccountSettingsScreen() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(() => getAnalyticsConsent().analytics);
   const [displayName, setDisplayName] = useState(
     user?.email?.split('@')[0] || 'Devotee'
   );
@@ -281,6 +284,23 @@ export function AccountSettingsScreen() {
               <Database className="w-5 h-5 text-[#7C3AED]" />
               Data & Privacy
             </h3>
+
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-[#E6F0EA] bg-white px-3 py-3 mb-3">
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-gray-800">பயன்பாட்டு அனலிட்டிக்ஸ் அனுமதி</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  பயன்பாட்டை மேம்படுத்த பயன்பாட்டு தகவல்கள் சேகரிக்கப்படும்.
+                </div>
+              </div>
+              <Switch
+                checked={analyticsEnabled}
+                onCheckedChange={(checked: boolean) => {
+                  setAnalyticsEnabled(checked);
+                  setAnalyticsConsent({ analytics: checked });
+                  toast.success(checked ? 'Analytics enabled' : 'Analytics disabled');
+                }}
+              />
+            </div>
 
             <Button
               variant="outline"

@@ -1,0 +1,27 @@
+{
+  "name": "muruganai-expo",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "expo": "^54.0.0",
+    "expo-asset": "*",
+    "expo-constants": "*",
+    "expo-location": "*",
+    "expo-notifications": "*",
+    "react": "^19.1.0",
+    "react-native": "0.81.0",
+    "react-native-webview": "*"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -20,6 +20,24 @@ const BUCKETS: BucketConfig[] = [
     allowedMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"],
   },
   {
+    name: "popup-banners",
+    public: true,
+    fileSizeLimit: 10485760, // 10MB
+    allowedMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"],
+  },
+  {
+    name: "dashboard-icons",
+    public: true,
+    fileSizeLimit: 5242880, // 5MB
+    allowedMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"],
+  },
+  {
+    name: "quotes",
+    public: true,
+    fileSizeLimit: 10485760, // 10MB
+    allowedMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"],
+  },
+  {
     name: "wallpapers",
     public: true,
     fileSizeLimit: 20971520, // 20MB
@@ -28,8 +46,8 @@ const BUCKETS: BucketConfig[] = [
   {
     name: "media",
     public: true,
-    fileSizeLimit: 52428800, // 50MB
-    allowedMimeTypes: ["audio/mpeg", "audio/mp3", "video/mp4", "audio/wav"],
+    fileSizeLimit: 209715200, // 200MB
+    allowedMimeTypes: ["audio/mpeg", "audio/mp3", "audio/mp4", "audio/x-m4a", "video/mp4", "audio/wav"],
   },
   {
     name: "photos",
@@ -40,8 +58,18 @@ const BUCKETS: BucketConfig[] = [
   {
     name: "sparkle",
     public: true,
-    fileSizeLimit: 10485760, // 10MB
-    allowedMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"],
+    fileSizeLimit: 209715200, // 200MB to support long-form video uploads
+    allowedMimeTypes: [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/avif",
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+      "video/x-matroska",
+    ],
   },
   {
     name: "ai-logs",

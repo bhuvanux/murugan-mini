@@ -40,6 +40,124 @@ function getDeviceType(userAgent: string | undefined): string {
   return "desktop";
 }
 
+async function adjustSparkleCounter(
+  supabase: ReturnType<typeof supabaseClient>,
+  sparkleId: string,
+  column: "view_count" | "like_count" | "share_count",
+  delta: number,
+) {
+  const tableName = "sparkles";
+
+  try {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select(column)
+      .eq("id", sparkleId)
+      .single();
+
+    if (error) {
+      console.error(
+        `[Analytics] Unable to fetch ${column} from ${tableName} for sparkle ${sparkleId}:`,
+        error,
+      );
+      return false;
+    }
+
+    const currentValue = (data?.[column] ?? 0) as number;
+    const nextValue = delta < 0 ? Math.max(0, currentValue + delta) : currentValue + delta;
+
+    const { error: updateError } = await supabase
+      .from(tableName)
+      .update({ [column]: nextValue })
+      .eq("id", sparkleId);
+
+    if (updateError) {
+      console.error(
+        `[Analytics] Failed to update ${column} in ${tableName} for sparkle ${sparkleId}:`,
+        updateError,
+      );
+      return false;
+    }
+
+    console.log(
+      `[Analytics] ✅ Updated sparkle ${sparkleId} ${column} in ${tableName}: ${currentValue} → ${nextValue}`,
+    );
+    return true;
+  } catch (unknownError) {
+    console.error(
+      `[Analytics] Unexpected error adjusting ${column} in ${tableName} for sparkle ${sparkleId}:`,
+      unknownError,
+    );
+    return false;
+  }
+}
+
+/**
+ * Get Daily Trend by Event
+ * GET /api/analytics/admin/trend/:module/:eventType?start_date=ISO&end_date=ISO
+ */
+export async function getTrendByEvent(c: Context) {
+  try {
+    const module_name = c.req.param("module");
+    const event_type = c.req.param("eventType");
+    const startDate = c.req.query("start_date") || null;
+    const endDate = c.req.query("end_date") || null;
+
+    if (!module_name || !event_type) {
+      return c.json(
+        { success: false, error: "Missing module or eventType parameter" },
+        400,
+      );
+    }
+
+    const supabase = supabaseClient();
+
+    let query = supabase
+      .from("analytics_tracking")
+      .select("created_at")
+      .eq("module_name", module_name)
+      .eq("event_type", event_type)
+      .order("created_at", { ascending: true });
+
+    if (startDate) {
+      query = query.gte("created_at", startDate);
+    }
+
+    if (endDate) {
+      query = query.lte("created_at", endDate);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("[Analytics] Trend error:", error);
+      return c.json({ success: false, error: error.message }, 500);
+    }
+
+    const countsByDay: Record<string, number> = {};
+    for (const row of data || []) {
+      const day = new Date((row as any).created_at).toISOString().slice(0, 10);
+      countsByDay[day] = (countsByDay[day] || 0) + 1;
+    }
+
+    const daily = Object.entries(countsByDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+
+    return c.json({
+      success: true,
+      module: module_name,
+      event_type,
+      start_date: startDate,
+      end_date: endDate,
+      daily,
+    });
+  } catch (error: any) {
+    console.error("[Analytics] Trend error:", error);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+}
+
 // ====================================================================
 // PUBLIC TRACKING ENDPOINTS (User Panel)
 // ====================================================================
@@ -54,11 +172,14 @@ export async function trackEvent(c: Context) {
     const body = await c.req.json();
     const { module_name, item_id, event_type, metadata = {} } = body;
 
+    console.log(`[Analytics] trackEvent called with:`, { module_name, item_id, event_type, metadata });
+
     if (!module_name || !item_id || !event_type) {
+      console.error("[Analytics] Missing required fields:", { module_name, item_id, event_type });
       return c.json(
-        { 
-          success: false, 
-          error: "Missing required fields: module_name, item_id, event_type" 
+        {
+          success: false,
+          error: "Missing required fields: module_name, item_id, event_type"
         },
         400
       );
@@ -72,6 +193,16 @@ export async function trackEvent(c: Context) {
     console.log(`[Analytics] Tracking ${event_type} for ${module_name}:${item_id} from IP ${ipAddress}`);
 
     // Call database function for tracking
+    console.log("[Analytics] Calling track_analytics_event RPC with:", {
+      p_module_name: module_name,
+      p_item_id: item_id,
+      p_event_type: event_type,
+      p_ip_address: ipAddress,
+      p_user_agent: userAgent || null,
+      p_device_type: deviceType,
+      p_metadata: metadata,
+    });
+
     const { data, error } = await supabase.rpc("track_analytics_event", {
       p_module_name: module_name,
       p_item_id: item_id,
@@ -81,6 +212,8 @@ export async function trackEvent(c: Context) {
       p_device_type: deviceType,
       p_metadata: metadata,
     });
+
+    console.log(`[Analytics] RPC response - data:`, data, "error:", error);
 
     if (error) {
       console.error("[Analytics] Tracking error:", error);
@@ -129,6 +262,54 @@ export async function trackEvent(c: Context) {
       }
     }
 
+    // SYNC WITH POPUP BANNER COUNTERS
+    // If this is a popup banner event and was actually tracked (not duplicate), increment popup banner counters
+    if (module_name === 'popup_banner' && data.tracked) {
+      try {
+        if (event_type === 'view') {
+          await supabase.rpc('increment_popup_banner_views', { popup_banner_id: item_id });
+          console.log(`[Analytics] ✅ Incremented popup banner view counter for ${item_id}`);
+        } else if (event_type === 'click') {
+          await supabase.rpc('increment_popup_banner_clicks', { popup_banner_id: item_id });
+          console.log(`[Analytics] ✅ Incremented popup banner click counter for ${item_id}`);
+        }
+      } catch (counterError: any) {
+        console.error(`[Analytics] ⚠️ Popup banner counter increment error (non-fatal):`, counterError);
+        // Don't fail the request if counter increment fails
+      }
+    }
+
+    // SYNC WITH SPARKLE COUNTERS
+    // If this is a sparkle event and was actually tracked (not duplicate), increment sparkle counters
+    if (module_name === 'sparkle' && data.tracked) {
+      try {
+        if (event_type === 'view' || event_type === 'read') {
+          await adjustSparkleCounter(supabase, item_id, 'view_count', 1);
+        } else if (event_type === 'like') {
+          await adjustSparkleCounter(supabase, item_id, 'like_count', 1);
+        } else if (event_type === 'share') {
+          await adjustSparkleCounter(supabase, item_id, 'share_count', 1);
+        }
+      } catch (counterError: any) {
+        console.error(`[Analytics] ⚠️ Sparkle counter increment error (non-fatal):`, counterError);
+        // Don't fail the request if counter increment fails
+      }
+    }
+
+    // SYNC WITH QUOTE COUNTERS
+    // If this is a quote view and was actually tracked (not duplicate), increment quote view counters
+    if (module_name === 'quote' && data.tracked) {
+      try {
+        if (event_type === 'view') {
+          await supabase.rpc('increment_daily_quote_views', { quote_id: item_id });
+          console.log(`[Analytics] ✅ Incremented quote view counter for ${item_id}`);
+        }
+      } catch (counterError: any) {
+        console.error(`[Analytics] ⚠️ Quote counter increment error (non-fatal):`, counterError);
+        // Don't fail the request if counter increment fails
+      }
+    }
+
     return c.json({
       success: true,
       result: data,
@@ -138,6 +319,37 @@ export async function trackEvent(c: Context) {
     });
   } catch (error: any) {
     console.error("[Analytics] Track error:", error);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+}
+
+/**
+ * Get Active Users Stats (DAU-style) for a date range
+ * GET /api/analytics/admin/active-users?start_date=ISO&end_date=ISO
+ */
+export async function getActiveUsersStats(c: Context) {
+  try {
+    const supabase = supabaseClient();
+
+    const startDate = c.req.query("start_date") || null;
+    const endDate = c.req.query("end_date") || null;
+
+    const { data, error } = await supabase.rpc("get_active_users_stats", {
+      p_start_date: startDate,
+      p_end_date: endDate,
+    });
+
+    if (error) {
+      console.error("[Analytics] Active users stats error:", error);
+      return c.json({ success: false, error: error.message }, 500);
+    }
+
+    return c.json({
+      success: true,
+      stats: data || {},
+    });
+  } catch (error: any) {
+    console.error("[Analytics] Active users stats error:", error);
     return c.json({ success: false, error: error.message }, 500);
   }
 }
@@ -154,9 +366,9 @@ export async function untrackEvent(c: Context) {
 
     if (!module_name || !item_id || !event_type) {
       return c.json(
-        { 
-          success: false, 
-          error: "Missing required fields: module_name, item_id, event_type" 
+        {
+          success: false,
+          error: "Missing required fields: module_name, item_id, event_type"
         },
         400
       );
@@ -190,6 +402,19 @@ export async function untrackEvent(c: Context) {
         }
       } catch (counterError: any) {
         console.error(`[Analytics] ⚠️ Counter decrement error (non-fatal):`, counterError);
+        // Don't fail the request if counter decrement fails
+      }
+    }
+
+    // SYNC WITH SPARKLE COUNTERS
+    // If this is a sparkle event and was actually removed, decrement sparkle counters
+    if (module_name === 'sparkle' && data.removed) {
+      try {
+        if (event_type === 'like') {
+          await adjustSparkleCounter(supabase, item_id, 'like_count', -1);
+        }
+      } catch (counterError: any) {
+        console.error(`[Analytics] ⚠️ Sparkle counter decrement error (non-fatal):`, counterError);
         // Don't fail the request if counter decrement fails
       }
     }
@@ -453,13 +678,13 @@ export async function updateAnalyticsConfig(c: Context) {
 export async function addAnalyticsConfig(c: Context) {
   try {
     const body = await c.req.json();
-    const { 
-      module_name, 
-      event_type, 
-      display_name, 
-      description, 
-      icon, 
-      sort_order = 999 
+    const {
+      module_name,
+      event_type,
+      display_name,
+      description,
+      icon,
+      sort_order = 999
     } = body;
 
     if (!module_name || !event_type || !display_name) {

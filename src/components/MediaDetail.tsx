@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MediaItem, userAPI } from '../utils/api/client';
 import { ImageWithFallback } from './figma/ImageWithFallback';
-import { X, Heart, Download, Loader2 } from 'lucide-react';
+import { X, Heart, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { MuruganLoader } from './MuruganLoader';
 
 // WhatsApp icon component
 const WhatsAppIcon = ({ className }: { className?: string }) => (
@@ -26,8 +27,8 @@ export function MediaDetail({
   allMedia, 
   onClose, 
   onMediaChange,
-  isFavorite, 
-  onToggleFavorite,
+  isFavorite: _isFavorite,
+  onToggleFavorite: _onToggleFavorite,
   onMediaUpdate // ✅ NEW: Accept callback
 }: MediaDetailProps) {
   const [downloading, setDownloading] = useState(false);
@@ -93,25 +94,6 @@ export function MediaDetail({
     
     preloadImages();
   }, [currentIndex, allMedia]);
-
-  const trackView = async () => {
-    try {
-      console.log('[MediaDetail] Tracking view for:', media.id);
-      await userAPI.trackView(media.id);
-      console.log('[MediaDetail] View tracked successfully');
-    } catch (error: any) {
-      console.error('[MediaDetail] Failed to track view:', error);
-    }
-  };
-
-  const checkLikeStatus = async () => {
-    try {
-      const liked = await userAPI.checkIfLiked(media.id);
-      setIsLiked(liked);
-    } catch (error) {
-      console.error('Failed to check like status:', error);
-    }
-  };
 
   const handleLike = async (e: React.MouseEvent | React.TouchEvent) => {
     // CRITICAL: Stop all event propagation to prevent swipe gestures
@@ -382,7 +364,7 @@ export function MediaDetail({
                        disabled:opacity-50"
           >
             {downloading ? (
-              <Loader2 className="w-6 h-6 text-gray-700 animate-spin" />
+              <MuruganLoader variant="button" />
             ) : (
               <Download className="w-6 h-6 text-gray-700" />
             )}

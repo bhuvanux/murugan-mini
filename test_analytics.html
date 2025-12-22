@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Sparkle Analytics</title>
+</head>
+<body>
+    <h1>Test Sparkle Analytics Tracking</h1>
+    <button onclick="testAnalytics()">Test Analytics</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAnalytics() {
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // Test tracking a view event
+                const response = await fetch('https://lnherrwzjtemrvzahppg.supabase.co/functions/v1/make-server-4a075ebc/api/analytics/track', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuaGVycnd6anRlbXJ2emFocHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTkyNTksImV4cCI6MjA3OTU3NTI1OX0.Okhete2Bda3oXFVjh8-Xg5Xt-Rd_I1nwcq0kapJuAuI'
+                    },
+                    body: JSON.stringify({
+                        module_name: 'sparkle',
+                        item_id: 'test-sparkle-id',
+                        event_type: 'view',
+                        metadata: { test: true }
+                    })
+                });
+
+                const data = await response.json();
+                resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                if (!response.ok) {
+                    resultDiv.innerHTML += '<p style="color: red;">Error: ' + response.statusText + '</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p style="color: red;">Error: ' + error.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

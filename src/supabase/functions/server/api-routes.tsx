@@ -6,12 +6,114 @@
 import { Context } from "npm:hono";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { uploadFile, getPublicUrl, deleteFile } from "./storage-init.tsx";
+import * as kv from "./kv_store.tsx";
 
 const supabaseClient = () =>
   createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
+
+function normalizeTempleSearchKey(input: string): string {
+  const original = (input || "").trim();
+  if (!original) return "";
+
+  let normalized = original.normalize("NFC").toLowerCase();
+  normalized = normalized.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  normalized = normalized.replace(/[\s\-_,.()\[\]{}:;!?'"|/\\]+/g, " ");
+
+  const variants: Array<[RegExp, string]> = [
+    [/கந்தா/gu, "கந்தன்"],
+    [/கந்த/gu, "கந்தன்"],
+    [/முருகா/gu, "முருகன்"],
+    [/முருக/gu, "முருகன்"],
+    [/சுப்பிரமணிய/gu, "முருகன்"],
+    [/சுப்ரமணிய/gu, "முருகன்"],
+    [/சுப்பிரமண்ய/gu, "முருகன்"],
+  ];
+
+  for (const [re, replacement] of variants) {
+    normalized = normalized.replace(re, replacement);
+  }
+
+  normalized = normalized.replace(/\s+/g, " ").trim();
+  return normalized;
+}
+
+// ====================================================================
+// DASHBOARD FEATURE ICONS (Admin)
+// ====================================================================
+
+export async function uploadDashboardIcon(c: Context) {
+  try {
+    const formData = await c.req.formData();
+    const fileRaw = formData.get("file");
+    const file =
+      fileRaw instanceof File
+        ? fileRaw
+        : fileRaw instanceof Blob
+          ? new File([fileRaw], "upload", { type: fileRaw.type })
+          : null;
+
+    if (!file) {
+      return c.json({ error: "file is required" }, 400);
+    }
+
+    const filename = generateFilename(file.name, "icons");
+    const uploadResult = await uploadFile("dashboard-icons", filename, file, {
+      contentType: file.type,
+      cacheControl: "31536000",
+    });
+
+    if (!uploadResult.success) {
+      return c.json({ error: uploadResult.error }, 500);
+    }
+
+    const url = getPublicUrl("dashboard-icons", filename);
+    return c.json({ success: true, url, path: filename });
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function listDashboardIcons(c: Context) {
+  try {
+    const supabase = supabaseClient();
+    const { data, error } = await supabase.storage
+      .from("dashboard-icons")
+      .list("icons", { limit: 200, sortBy: { column: "name", order: "asc" } });
+
+    if (error) {
+      return c.json({ error: error.message }, 500);
+    }
+
+    const files = (data || [])
+      .filter((f: any) => f && f.name)
+      .map((f: any) => {
+        const path = `icons/${f.name}`;
+        return {
+          name: f.name,
+          path,
+          url: getPublicUrl("dashboard-icons", path),
+        };
+      });
+
+    return c.json({ success: true, data: files });
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+function buildTempleSearchKey(params: {
+  temple_name_ta: string;
+  temple_name_en?: string | null;
+  place: string;
+}): string {
+  const combined = [params.temple_name_ta || "", params.temple_name_en || "", params.place || ""]
+    .join(" ")
+    .trim();
+  return normalizeTempleSearchKey(combined);
+}
 
 /**
  * Generate unique filename
@@ -21,6 +123,13 @@ function generateFilename(originalName: string, prefix: string): string {
   const random = crypto.randomUUID().slice(0, 8);
   const ext = originalName.split(".").pop();
   return `${prefix}/${timestamp}-${random}.${ext}`;
+}
+
+function toISODateLocal(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /**
@@ -42,6 +151,283 @@ async function logAdminActivity(
     ip_address: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for"),
     user_agent: c.req.header("user-agent"),
   });
+}
+
+// ====================================================================
+// DAILY QUOTES (QUOTES / WISHES) ROUTES
+// ====================================================================
+
+export async function uploadQuote(c: Context) {
+  try {
+    const formData = await c.req.formData();
+    const fileRaw = formData.get("file");
+    const file =
+      fileRaw instanceof File
+        ? fileRaw
+        : fileRaw instanceof Blob
+          ? new File([fileRaw], "upload", { type: fileRaw.type })
+          : null;
+    const text = (formData.get("text") as string) || (formData.get("title") as string) || "";
+    const publishStatus = (formData.get("publishStatus") as string) || "draft";
+    const scheduledForRaw =
+      (formData.get("scheduled_for") as string) ||
+      (formData.get("scheduled_at") as string) ||
+      "";
+    const autoDeleteRaw = (formData.get("auto_delete") as string) || "true";
+
+    if (!file) {
+      return c.json({ error: "file is required" }, 400);
+    }
+
+    const scheduledFor = scheduledForRaw
+      ? toISODateLocal(new Date(scheduledForRaw))
+      : toISODateLocal(new Date());
+    const autoDelete = autoDeleteRaw === "false" ? false : true;
+
+    const resolvedText = text.trim() ? text.trim() : " ";
+
+    let storagePath: string | null = null;
+    let backgroundUrl: string | null = null;
+
+    if (file) {
+      const filename = generateFilename(file.name, "quotes");
+      const uploadResult = await uploadFile("quotes", filename, file, {
+        contentType: file.type,
+      });
+
+      if (!uploadResult.success) {
+        return c.json({ error: uploadResult.error }, 500);
+      }
+
+      storagePath = filename;
+      backgroundUrl = getPublicUrl("quotes", filename);
+    }
+
+    const supabase = supabaseClient();
+
+    // Replace existing banner for the same day (prevents multiple banners fighting for the same date)
+    const { data: existing } = await supabase
+      .from("daily_quotes")
+      .select("id, storage_path")
+      .eq("scheduled_for", scheduledFor)
+      .in("publish_status", ["published", "scheduled"])
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextPublishedAt = publishStatus === "published" ? new Date().toISOString() : null;
+
+    let data: any = null;
+    let error: any = null;
+
+    if (existing?.id) {
+      const { data: updated, error: updateError } = await supabase
+        .from("daily_quotes")
+        .update({
+          text: resolvedText,
+          publish_status: publishStatus,
+          scheduled_for: scheduledFor,
+          published_at: nextPublishedAt,
+          auto_delete: autoDelete,
+          background_url: backgroundUrl,
+          storage_path: storagePath,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      data = updated;
+      error = updateError;
+
+      if (!updateError && existing.storage_path && storagePath && existing.storage_path !== storagePath) {
+        await deleteFile("quotes", existing.storage_path);
+      }
+    } else {
+      const { data: inserted, error: insertError } = await supabase
+        .from("daily_quotes")
+        .insert({
+          text: resolvedText,
+          publish_status: publishStatus,
+          scheduled_for: scheduledFor,
+          published_at: nextPublishedAt,
+          auto_delete: autoDelete,
+          background_url: backgroundUrl,
+          storage_path: storagePath,
+        })
+        .select()
+        .single();
+
+      data = inserted;
+      error = insertError;
+    }
+
+    if (error) {
+      console.error("[Quote Upload] Database error:", error);
+      return c.json({ error: error.message }, 500);
+    }
+
+    await logAdminActivity("upload", "quote", data.id, { scheduled_for: scheduledFor }, c);
+
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    console.error("[Quote Upload] Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function getQuotes(c: Context) {
+  try {
+    const supabase = supabaseClient();
+    const { data, error } = await supabase
+      .from("daily_quotes")
+      .select("*")
+      .order("scheduled_for", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) return c.json({ error: error.message }, 500);
+    return c.json({ success: true, data: data || [] });
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function getTodayQuote(c: Context) {
+  try {
+    const dateParam = c.req.query("date");
+    const requestedDate = dateParam ? String(dateParam).slice(0, 10) : toISODateLocal(new Date());
+    const supabase = supabaseClient();
+
+    const { data: published, error: publishedError } = await supabase
+      .from("daily_quotes")
+      .select("id, text, background_url, scheduled_for")
+      .eq("scheduled_for", requestedDate)
+      .in("publish_status", ["published", "scheduled"])
+      .order("published_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (publishedError) {
+      return c.json({ success: true, data: null });
+    }
+
+    if (published) {
+      return c.json({ success: true, data: published });
+    }
+
+    return c.json({ success: true, data: null });
+  } catch (error: any) {
+    return c.json({ success: true, data: null });
+  }
+}
+
+export async function updateQuote(c: Context) {
+  try {
+    const id = c.req.param("id");
+    const contentType = c.req.header("content-type") || "";
+
+    const supabase = supabaseClient();
+    const { data: existing } = await supabase
+      .from("daily_quotes")
+      .select("storage_path")
+      .eq("id", id)
+      .maybeSingle();
+
+    // Multipart update supports updating the background file
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await c.req.formData();
+      const file = (formData.get("file") as File) || null;
+
+      const text = (formData.get("text") as string) || "";
+      const publishStatus = (formData.get("publish_status") as string) || (formData.get("publishStatus") as string) || undefined;
+      const scheduledForRaw = (formData.get("scheduled_for") as string) || undefined;
+      const autoDeleteRaw = (formData.get("auto_delete") as string) || undefined;
+
+      const updateData: any = {};
+      if (text != null) updateData.text = text.trim() ? text.trim() : " ";
+      if (publishStatus) updateData.publish_status = publishStatus;
+      if (scheduledForRaw) updateData.scheduled_for = String(scheduledForRaw).slice(0, 10);
+      if (autoDeleteRaw != null) updateData.auto_delete = autoDeleteRaw !== "false";
+
+      if (file) {
+        const filename = generateFilename(file.name, "quotes");
+        const uploadResult = await uploadFile("quotes", filename, file, {
+          contentType: file.type,
+        });
+        if (!uploadResult.success) {
+          return c.json({ error: uploadResult.error }, 500);
+        }
+
+        updateData.storage_path = filename;
+        updateData.background_url = getPublicUrl("quotes", filename);
+
+        if (existing?.storage_path) {
+          await deleteFile("quotes", existing.storage_path);
+        }
+      }
+
+      updateData.updated_at = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from("daily_quotes")
+        .update(updateData)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) return c.json({ error: error.message }, 500);
+      await logAdminActivity("update", "quote", id, updateData, c);
+      return c.json({ success: true, data });
+    }
+
+    // JSON update
+    const body = await c.req.json();
+    const updateData: any = { ...body, updated_at: new Date().toISOString() };
+    if (updateData.text != null) {
+      updateData.text = String(updateData.text).trim() ? String(updateData.text).trim() : " ";
+    }
+    if (updateData.scheduled_for != null) {
+      updateData.scheduled_for = String(updateData.scheduled_for).slice(0, 10);
+    }
+
+    const { data, error } = await supabase
+      .from("daily_quotes")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) return c.json({ error: error.message }, 500);
+    await logAdminActivity("update", "quote", id, body, c);
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function deleteQuote(c: Context) {
+  try {
+    const id = c.req.param("id");
+    const supabase = supabaseClient();
+
+    const { data: quote } = await supabase
+      .from("daily_quotes")
+      .select("storage_path")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (quote?.storage_path) {
+      await deleteFile("quotes", quote.storage_path);
+    }
+
+    const { error } = await supabase.from("daily_quotes").delete().eq("id", id);
+    if (error) return c.json({ error: error.message }, 500);
+
+    await logAdminActivity("delete", "quote", id, {}, c);
+    return c.json({ success: true });
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
 }
 
 // ====================================================================
@@ -71,7 +457,7 @@ export async function uploadBanner(c: Context) {
     // Upload original file
     const filename = generateFilename(file.name, "banners");
     console.log("[Banner Upload] Uploading to storage:", filename);
-    
+
     const uploadResult = await uploadFile("banners", filename, file, {
       contentType: file.type,
     });
@@ -85,13 +471,13 @@ export async function uploadBanner(c: Context) {
     const supabase = supabaseClient();
     const { data: urlData } = supabase.storage.from("banners").getPublicUrl(filename);
     const publicUrl = urlData.publicUrl;
-    
+
     console.log("[Banner Upload] Storage success! Public URL:", publicUrl);
 
     // Save to database - MINIMAL SAFE INSERT
     // Only using columns that should exist in basic banners table
     console.log("[Banner Upload] Attempting database insert with minimal fields...");
-    
+
     const insertData: any = {
       title,
       description,
@@ -99,13 +485,15 @@ export async function uploadBanner(c: Context) {
       thumbnail_url: publicUrl,
       order_index: 0,
       publish_status: publishStatus,
+      banner_type: bannerType, // ✅ FIX: Save banner_type
+      visibility: "public",    // ✅ FIX: Explicitly set visibility
     };
-    
+
     // Add optional fields if provided
     if (folderId) insertData.folder_id = folderId;
     if (scheduledAt) insertData.scheduled_at = scheduledAt;
     if (targetUrl) insertData.target_url = targetUrl;
-    
+
     const { data, error } = await supabase
       .from("banners")
       .insert(insertData)
@@ -134,13 +522,221 @@ export async function uploadBanner(c: Context) {
   }
 }
 
+// ====================================================================
+// TEMPLES ROUTES
+// ====================================================================
+
+export async function getTemples(c: Context) {
+  try {
+    const supabase = supabaseClient();
+    const includeInactive = c.req.query("includeInactive") === "true";
+
+    let query = supabase
+      .from("temples")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!includeInactive) {
+      query = query.eq("is_active", true);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("[Get Temples] Error:", error);
+      return c.json({ error: error.message }, 500);
+    }
+
+    return c.json({ success: true, data: data || [] });
+  } catch (error: any) {
+    console.error("[Get Temples] Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function createTemple(c: Context) {
+  try {
+    const supabase = supabaseClient();
+    const body = await c.req.json();
+
+    const temple_name_ta = body.temple_name_ta as string;
+    const temple_fame = body.temple_fame as string;
+    const place = body.place as string;
+
+    if (!temple_name_ta || !temple_fame || !place) {
+      return c.json({ error: "temple_name_ta, temple_fame, place are required" }, 400);
+    }
+
+    const insertData = {
+      ...body,
+      search_key: buildTempleSearchKey({
+        temple_name_ta,
+        temple_name_en: body.temple_name_en ?? null,
+        place,
+      }),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("temples")
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[Create Temple] Error:", error);
+      return c.json({ error: error.message }, 500);
+    }
+
+    await logAdminActivity("create", "temple", data.id, { temple_name_ta, place }, c);
+
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    console.error("[Create Temple] Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function updateTemple(c: Context) {
+  try {
+    const id = c.req.param("id");
+    const supabase = supabaseClient();
+    const body = await c.req.json();
+
+    const { data: current, error: currentError } = await supabase
+      .from("temples")
+      .select("temple_name_ta, temple_name_en, place")
+      .eq("id", id)
+      .single();
+
+    if (currentError) {
+      console.error("[Update Temple] Fetch error:", currentError);
+      return c.json({ error: currentError.message }, 500);
+    }
+
+    const nextTempleNameTa = (body.temple_name_ta ?? current.temple_name_ta) as string;
+    const nextTempleNameEn = (body.temple_name_en ?? current.temple_name_en) as string | null;
+    const nextPlace = (body.place ?? current.place) as string;
+
+    const updateData = {
+      ...body,
+      search_key: buildTempleSearchKey({
+        temple_name_ta: nextTempleNameTa,
+        temple_name_en: nextTempleNameEn,
+        place: nextPlace,
+      }),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("temples")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[Update Temple] Error:", error);
+      return c.json({ error: error.message }, 500);
+    }
+
+    await logAdminActivity("update", "temple", id, body, c);
+
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    console.error("[Update Temple] Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function deleteTemple(c: Context) {
+  try {
+    const id = c.req.param("id");
+    const supabase = supabaseClient();
+
+    const { error } = await supabase.from("temples").delete().eq("id", id);
+
+    if (error) {
+      console.error("[Delete Temple] Error:", error);
+      return c.json({ error: error.message }, 500);
+    }
+
+    await logAdminActivity("delete", "temple", id, {}, c);
+    return c.json({ success: true });
+  } catch (error: any) {
+    console.error("[Delete Temple] Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function bulkUpsertTemples(c: Context) {
+  try {
+    const supabase = supabaseClient();
+    const body = await c.req.json();
+    const rows = (Array.isArray(body) ? body : body?.rows) as any[];
+
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      return c.json({ error: "rows array required" }, 400);
+    }
+
+    const payload = rows
+      .filter(Boolean)
+      .map((r) => {
+        const temple_name_ta = (r.temple_name_ta || "").trim();
+        const temple_fame = (r.temple_fame || "").trim();
+        const place = (r.place || "").trim();
+
+        return {
+          ...r,
+          temple_name_ta,
+          temple_fame,
+          place,
+          search_key: buildTempleSearchKey({
+            temple_name_ta,
+            temple_name_en: r.temple_name_en ?? null,
+            place,
+          }),
+          updated_at: new Date().toISOString(),
+        };
+      })
+      .filter((r) => r.temple_name_ta && r.temple_fame && r.place);
+
+    if (payload.length === 0) {
+      return c.json({ success: true, data: [], inserted: 0 });
+    }
+
+    const { data, error } = await supabase
+      .from("temples")
+      .upsert(payload, { onConflict: "search_key,place" })
+      .select();
+
+    if (error) {
+      console.error("[Bulk Upsert Temples] Error:", error);
+      return c.json({ error: error.message }, 500);
+    }
+
+    await logAdminActivity(
+      "bulk_upsert",
+      "temple",
+      "bulk",
+      { rows: payload.length },
+      c,
+    );
+
+    return c.json({ success: true, data: data || [], inserted: payload.length });
+  } catch (error: any) {
+    console.error("[Bulk Upsert Temples] Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+}
+
 /**
  * Sync published banners to user cache
  */
 async function syncUserBanners(supabase: any) {
   try {
     console.log("[Sync Engine] Syncing published BANNERS to user cache...");
-    
+
     // Use minimal columns to avoid schema errors
     const { data: banners, error } = await supabase
       .from("banners")
@@ -154,10 +750,10 @@ async function syncUserBanners(supabase: any) {
     }
 
     // Store in KV store for fast user access - KEY: user_banners
-    const kv = await import("./kv_store.tsx");
+    // Using static import kv instead of dynamic import
     await kv.set("user_banners", JSON.stringify(banners || []));
     await kv.set("user_banners_timestamp", Date.now().toString());
-    
+
     console.log(`[Sync Engine] ✅ Synced ${banners?.length || 0} BANNERS to user_banners cache`);
   } catch (error) {
     console.error("[Sync Engine] Sync banners error:", error);
@@ -198,7 +794,7 @@ export async function updateBanner(c: Context) {
 
     // Remove any fields that might not exist in the schema
     const { published_at, visibility, original_url, banner_type, ...safeBody } = body;
-    
+
     console.log("[Banner Update] Safe update fields:", Object.keys(safeBody));
 
     const supabase = supabaseClient();
@@ -256,6 +852,282 @@ export async function deleteBanner(c: Context) {
 }
 
 // ====================================================================
+// POPUP BANNERS ROUTES
+// ====================================================================
+
+export async function uploadPopupBanner(c: Context) {
+  try {
+    const formData = await c.req.formData();
+    const file = formData.get("file") as File;
+    const title = (formData.get("title") as string) || "";
+    const publishStatus = (formData.get("publishStatus") as string) || "draft";
+    const scheduledAt = (formData.get("scheduled_at") as string) || null;
+    const startsAt = (formData.get("starts_at") as string) || null;
+    const endsAt = (formData.get("ends_at") as string) || null;
+    const targetUrl = (formData.get("target_url") as string) || null;
+    const priorityRaw = (formData.get("priority") as string) || "0";
+    const isEnabledRaw = (formData.get("is_enabled") as string) || "true";
+
+    if (!file) {
+      return c.json({ error: "File is required" }, 400);
+    }
+
+    const resolvedTitle = title.trim() || file.name.replace(/\.[^/.]+$/, "");
+    const priority = Number.isFinite(Number(priorityRaw)) ? Number(priorityRaw) : 0;
+    const is_enabled = isEnabledRaw === "false" ? false : true;
+
+    const filename = generateFilename(file.name, "popup-banners");
+    const uploadResult = await uploadFile("popup-banners", filename, file, {
+      contentType: file.type,
+    });
+
+    if (!uploadResult.success) {
+      return c.json({ error: uploadResult.error }, 500);
+    }
+
+    const publicUrl = getPublicUrl("popup-banners", filename);
+    const supabase = supabaseClient();
+
+    const { data, error } = await supabase
+      .from("popup_banners")
+      .insert({
+        title: resolvedTitle,
+        image_url: publicUrl,
+        thumbnail_url: publicUrl,
+        storage_path: filename,
+        target_url: targetUrl,
+        publish_status: publishStatus,
+        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        starts_at: startsAt ? new Date(startsAt).toISOString() : null,
+        ends_at: endsAt ? new Date(endsAt).toISOString() : null,
+        is_enabled,
+        priority,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return c.json({ error: error.message }, 500);
+    }
+
+    await logAdminActivity("upload", "popup_banner", data.id, { title: resolvedTitle }, c);
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    console.error("[Popup Banner Upload] Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function getPopupBanners(c: Context) {
+  try {
+    const supabase = supabaseClient();
+    const { data, error } = await supabase
+      .from("popup_banners")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) return c.json({ error: error.message }, 500);
+    return c.json({ success: true, data: data || [] });
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function updatePopupBanner(c: Context) {
+  try {
+    const id = c.req.param("id");
+    const body = await c.req.json();
+    const supabase = supabaseClient();
+
+    const { data, error } = await supabase
+      .from("popup_banners")
+      .update({
+        ...body,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) return c.json({ error: error.message }, 500);
+
+    await logAdminActivity("update", "popup_banner", id, body, c);
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function deletePopupBanner(c: Context) {
+  try {
+    const id = c.req.param("id");
+    const supabase = supabaseClient();
+
+    const { data: row } = await supabase
+      .from("popup_banners")
+      .select("storage_path")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (row?.storage_path) {
+      await deleteFile("popup-banners", row.storage_path);
+    }
+
+    const { error } = await supabase.from("popup_banners").delete().eq("id", id);
+    if (error) return c.json({ error: error.message }, 500);
+
+    await logAdminActivity("delete", "popup_banner", id, {}, c);
+    return c.json({ success: true });
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+// Public endpoint for the app: returns the highest priority active popup banner.
+export async function getActivePopupBanner(c: Context) {
+  try {
+    const supabase = supabaseClient();
+    const nowIso = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("popup_banners")
+      .select("*")
+      .eq("publish_status", "published")
+      .eq("is_enabled", true)
+      .eq("is_active", true)
+      .eq("force_show", true)
+      .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
+      .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
+      .order("priority", { ascending: false })
+      .order("pushed_at", { ascending: false })
+      .limit(1);
+
+    if (error) return c.json({ error: error.message }, 500);
+    return c.json({ success: true, data: (data && data[0]) || null });
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function pushPopupBanner(c: Context) {
+  try {
+    const id = c.req.param("id");
+    const supabase = supabaseClient();
+
+    const { data: banner, error: fetchError } = await supabase
+      .from("popup_banners")
+      .select("id,image_url")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (fetchError) return c.json({ error: fetchError.message }, 500);
+    if (!banner) return c.json({ error: "Banner not found" }, 404);
+    if (!banner.image_url) return c.json({ error: "Banner image must be uploaded before pushing" }, 400);
+
+    const nowIso = new Date().toISOString();
+
+    const { error: deactivateError } = await supabase
+      .from("popup_banners")
+      .update({
+        is_active: false,
+        force_show: false,
+        updated_at: nowIso,
+      })
+      .neq("id", id);
+
+    if (deactivateError) {
+      return c.json({ error: deactivateError.message }, 500);
+    }
+
+    const { data: updated, error: updateError } = await supabase
+      .from("popup_banners")
+      .update({
+        publish_status: "published",
+        is_active: true,
+        force_show: true,
+        pushed_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateError) return c.json({ error: updateError.message }, 500);
+
+    await logAdminActivity("push", "popup_banner", id, {}, c);
+    return c.json({ success: true, data: updated });
+  } catch (error: any) {
+    console.error("[Popup Banner Push] Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+export async function replacePopupBannerImage(c: Context) {
+  try {
+    const id = c.req.param("id");
+    const formData = await c.req.formData();
+
+    const fileRaw = formData.get("file");
+    const file =
+      fileRaw instanceof File
+        ? fileRaw
+        : fileRaw instanceof Blob
+          ? new File([fileRaw], "upload", { type: fileRaw.type })
+          : null;
+
+    if (!file) {
+      return c.json({ error: "file is required" }, 400);
+    }
+
+    const supabase = supabaseClient();
+    const { data: existing, error: fetchError } = await supabase
+      .from("popup_banners")
+      .select("storage_path")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (fetchError) return c.json({ error: fetchError.message }, 500);
+    if (!existing) return c.json({ error: "Banner not found" }, 404);
+
+    if (existing.storage_path) {
+      await deleteFile("popup-banners", existing.storage_path);
+    }
+
+    const filename = generateFilename(file.name, "popup-banners");
+    const uploadResult = await uploadFile("popup-banners", filename, file, {
+      contentType: file.type,
+    });
+
+    if (!uploadResult.success) {
+      return c.json({ error: uploadResult.error }, 500);
+    }
+
+    const publicUrl = getPublicUrl("popup-banners", filename);
+    const nowIso = new Date().toISOString();
+
+    const { data: updated, error: updateError } = await supabase
+      .from("popup_banners")
+      .update({
+        image_url: publicUrl,
+        thumbnail_url: publicUrl,
+        storage_path: filename,
+        updated_at: nowIso,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateError) return c.json({ error: updateError.message }, 500);
+
+    await logAdminActivity("upload", "popup_banner_image", id, {}, c);
+    return c.json({ success: true, data: updated });
+  } catch (error: any) {
+    console.error("[Popup Banner Image Replace] Error:", error);
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+// ====================================================================
 // WALLPAPER ROUTES
 // ====================================================================
 
@@ -270,14 +1142,24 @@ export async function uploadWallpaper(c: Context) {
     const publishStatus = formData.get("publishStatus") as string || "draft";
     const folderId = formData.get("folder_id") as string;
     const scheduledAt = formData.get("scheduled_at") as string;
+    const metadataRaw = formData.get("metadata") as string;
     const isVideo = file.type.startsWith("video/");
 
     if (!file) {
       return c.json({ error: "File is required" }, 400);
     }
-    
+
     // Title is optional - use filename if not provided
     const finalTitle = title || file.name.replace(/\.[^/.]+$/, "");
+
+    let metadata: any = {};
+    if (metadataRaw) {
+      try {
+        metadata = JSON.parse(metadataRaw);
+      } catch {
+        metadata = {};
+      }
+    }
 
     const filename = generateFilename(file.name, "wallpapers");
     const uploadResult = await uploadFile("wallpapers", filename, file, {
@@ -311,6 +1193,7 @@ export async function uploadWallpaper(c: Context) {
         visibility: "public", // 🔥 CRITICAL FIX: Always set visibility to public
         published_at: publishStatus === "published" ? new Date().toISOString() : null,
         scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null, // 🔥 FIX: Save scheduled_at to database
+        metadata,
       })
       .select()
       .single();
@@ -345,7 +1228,7 @@ export async function uploadWallpaper(c: Context) {
 async function syncUserWallpapers(supabase: any) {
   try {
     console.log("[Sync Engine] Syncing published WALLPAPERS to user cache...");
-    
+
     const { data: wallpapers, error } = await supabase
       .from("wallpapers")
       .select("*")
@@ -358,10 +1241,10 @@ async function syncUserWallpapers(supabase: any) {
     }
 
     // Store in KV store for fast user access - KEY: user_wallpapers
-    const kv = await import("./kv_store.tsx");
+    // Using static import kv instead of dynamic import
     await kv.set("user_wallpapers", JSON.stringify(wallpapers || []));
     await kv.set("user_wallpapers_timestamp", Date.now().toString());
-    
+
     console.log(`[Sync Engine] ✅ Synced ${wallpapers?.length || 0} WALLPAPERS to user_wallpapers cache`);
   } catch (error) {
     console.error("[Sync Engine] Sync wallpapers error:", error);
@@ -406,14 +1289,14 @@ export async function updateWallpaper(c: Context) {
   try {
     const id = c.req.param("id");
     const body = await c.req.json();
-    
+
     console.log(`[updateWallpaper] Updating wallpaper ${id} with body:`, body);
 
     const supabase = supabaseClient();
-    
+
     // Prepare update object - include scheduled_at in database update
     const updateData: any = { ...body };
-    
+
     // Convert scheduled_at to ISO string if present
     if (updateData.scheduled_at !== undefined) {
       updateData.scheduled_at = updateData.scheduled_at ? new Date(updateData.scheduled_at).toISOString() : null;
@@ -426,7 +1309,7 @@ export async function updateWallpaper(c: Context) {
       .eq("id", id)
       .select()
       .single();
-    
+
     if (result.error) {
       console.error(`[updateWallpaper] Database update error:`, result.error);
       return c.json({ error: result.error.message }, 500);
@@ -440,14 +1323,14 @@ export async function updateWallpaper(c: Context) {
 
     await logAdminActivity("update", "wallpaper", id, body, c);
 
-    const response = { 
-      success: true, 
+    const response = {
+      success: true,
       data: {
         ...result.data,
         scheduled_at: result.data.scheduled_at || null
       }
     };
-    
+
     console.log(`[updateWallpaper] ✅ Success! Returning:`, response);
     return c.json(response);
   } catch (error: any) {
@@ -474,7 +1357,7 @@ export async function deleteWallpaper(c: Context) {
     }
 
     // Clean up scheduling info from KV store
-    const kv = await import("./kv_store.tsx");
+    // Using static import kv instead of dynamic import
     await kv.del(`wallpaper:schedule:${id}`);
 
     await logAdminActivity("delete", "wallpaper", id, {}, c);
@@ -509,10 +1392,10 @@ export async function fetchYouTubeMetadata(c: Context) {
 
     // Fetch metadata from YouTube oEmbed API (no API key required)
     const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(youtubeUrl)}&format=json`;
-    
+
     try {
       const response = await fetch(oembedUrl);
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch YouTube metadata");
       }
@@ -533,7 +1416,7 @@ export async function fetchYouTubeMetadata(c: Context) {
       });
     } catch (fetchError: any) {
       console.error("[YouTube Fetch] oEmbed API error:", fetchError);
-      
+
       // Fallback: Return basic info from URL
       return c.json({
         success: true,
@@ -578,7 +1461,7 @@ export async function uploadMedia(c: Context) {
     let storagePath = null;
     let youtubeId = null;
     let thumbnailUrl = null;
-    
+
     // ✅ FIX: Determine the actual media type to store in database
     // For YouTube, use contentType (audio/video), not "youtube"
     let actualMediaType = mediaType;
@@ -624,7 +1507,7 @@ export async function uploadMedia(c: Context) {
     if (category) {
       // Generate slug first (for lookup and potential insert)
       const slug = category.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-      
+
       // First, try to find existing category by slug (more reliable than name)
       const { data: existingCategory } = await supabase
         .from("categories")
@@ -650,7 +1533,7 @@ export async function uploadMedia(c: Context) {
 
         if (catError) {
           console.error("[Media Upload] Category creation error:", catError);
-          
+
           // If duplicate slug error (23505), try to fetch the existing category one more time
           if (catError.code === "23505") {
             console.log("[Media Upload] Duplicate slug detected, fetching existing category...");
@@ -660,7 +1543,7 @@ export async function uploadMedia(c: Context) {
               .eq("slug", slug)
               .eq("type", "media")
               .single();
-            
+
             if (retryCategory) {
               categoryId = retryCategory.id;
               console.log("[Media Upload] Retrieved existing category after duplicate:", categoryId);
@@ -941,6 +1824,7 @@ export async function uploadSparkle(c: Context) {
   try {
     const formData = await c.req.formData();
     const file = formData.get("file") as File | null;
+    const videoFile = formData.get("video") as File | null;
     const title = formData.get("title") as string;
     const subtitle = formData.get("subtitle") as string;
     const content = formData.get("content") as string;
@@ -950,12 +1834,28 @@ export async function uploadSparkle(c: Context) {
     const tags = formData.get("tags") as string;
     const publishStatus = formData.get("publishStatus") as string || "draft";
 
-    if (!title || !content) {
-      return c.json({ error: "Title and content are required" }, 400);
+    // Title is optional - fall back to uploaded filename for videos/images.
+    const inferredTitle =
+      (file?.name || videoFile?.name || "").replace(/\.[^/.]+$/, "");
+    const finalTitle = (title || "").trim() || inferredTitle;
+
+    // Auto-generate content from content/title if not provided
+    const finalContent = (content || "").trim() || finalTitle || " ";
+
+    const metadataRaw = formData.get("metadata") as string;
+    let metadata: any = {};
+    if (metadataRaw) {
+      try {
+        metadata = JSON.parse(metadataRaw);
+      } catch {
+        metadata = {};
+      }
     }
 
     let coverImageUrl = null;
     let storagePath = null;
+    let videoUrl: string | null = null;
+    let videoStoragePath: string | null = null;
 
     if (file) {
       const filename = generateFilename(file.name, "sparkle");
@@ -971,13 +1871,51 @@ export async function uploadSparkle(c: Context) {
       coverImageUrl = getPublicUrl("sparkle", filename);
     }
 
+    // Optional: handle attached video file for sparkle videos
+    if (videoFile) {
+      // Basic validation: only allow video content types and a reasonable size (~200MB)
+      if (!videoFile.type.startsWith("video/")) {
+        return c.json({ error: "Invalid video file type" }, 400);
+      }
+
+      if (videoFile.size > 200 * 1024 * 1024) {
+        return c.json({ error: "Video file too large (max 200MB)" }, 400);
+      }
+
+      const videoFilename = generateFilename(videoFile.name, "sparkle-videos");
+      console.log("[uploadSparkle] Video filename generated:", videoFilename);
+      
+      const videoUploadResult = await uploadFile("sparkle", videoFilename, videoFile, {
+        contentType: videoFile.type || "video/mp4",
+      });
+
+      if (!videoUploadResult.success) {
+        console.error("[uploadSparkle] Video upload failed:", videoUploadResult.error);
+        return c.json({ error: videoUploadResult.error }, 500);
+      }
+
+      videoStoragePath = videoFilename;
+      videoUrl = getPublicUrl("sparkle", videoFilename);
+      console.log("[uploadSparkle] Video URL generated:", videoUrl);
+    }
+
+    console.log("[uploadSparkle] Preparing to insert:", {
+      title: finalTitle,
+      subtitle,
+      hasVideo: !!videoUrl,
+      hasCoverImage: !!coverImageUrl,
+      videoUrl,
+      coverImageUrl,
+      publishStatus,
+    });
+
     const supabase = supabaseClient();
     const { data, error } = await supabase
       .from("sparkle")
       .insert({
-        title,
+        title: finalTitle,
         subtitle,
-        content,
+        content: finalContent,
         content_json: contentJson ? JSON.parse(contentJson) : null,
         cover_image_url: coverImageUrl,
         thumbnail_url: coverImageUrl,
@@ -986,6 +1924,9 @@ export async function uploadSparkle(c: Context) {
         tags: tags ? tags.split(",").map(t => t.trim()) : [],
         publish_status: publishStatus,
         published_at: publishStatus === "published" ? new Date().toISOString() : null,
+        video_url: videoUrl,
+        video_id: videoUrl ? `s_${Date.now()}_${crypto.randomUUID().slice(0, 4)}` : null,
+        metadata,
       })
       .select()
       .single();
@@ -994,6 +1935,15 @@ export async function uploadSparkle(c: Context) {
       console.error("[Sparkle Upload] Database error:", error);
       return c.json({ error: error.message }, 500);
     }
+
+    console.log("[uploadSparkle] Successfully inserted:", {
+      id: data.id,
+      title: data.title,
+      video_url: data.video_url,
+      video_id: data.video_id,
+      cover_image_url: data.cover_image_url,
+      publish_status: data.publish_status,
+    });
 
     await logAdminActivity("upload", "sparkle", data.id, { title }, c);
 
@@ -1010,6 +1960,7 @@ export async function getSparkle(c: Context) {
     const publishStatus = c.req.query("publishStatus") || null;
     const categoryId = c.req.query("categoryId") || null;
     const featured = c.req.query("featured") || null;
+    const debug = c.req.query("debug") === "true";
 
     let query = supabase
       .from("sparkle")
@@ -1028,6 +1979,41 @@ export async function getSparkle(c: Context) {
 
     if (error) {
       return c.json({ error: error.message }, 500);
+    }
+
+    const videoSparkles = data?.filter((s: any) => s.video_url) || [];
+    const imageSparkles = data?.filter((s: any) => !s.video_url && (s.cover_image_url || s.thumbnail_url)) || [];
+    const problematicSparkles = data?.filter((s: any) => !s.video_url && !s.cover_image_url && !s.thumbnail_url) || [];
+
+    console.log("[getSparkle] Returning sparkles:", {
+      total: data?.length || 0,
+      withVideo: videoSparkles.length,
+      withCoverImage: data?.filter((s: any) => s.cover_image_url).length || 0,
+      withImagesOnly: imageSparkles.length,
+      problematic: problematicSparkles.length,
+      sample: data?.[0] ? {
+        id: data[0].id,
+        title: data[0].title,
+        video_url: data[0].video_url,
+        cover_image_url: data[0].cover_image_url,
+        publish_status: data[0].publish_status,
+      } : null,
+    });
+
+    if (debug) {
+      // Return detailed info for debugging
+      return c.json({ 
+        success: true, 
+        data,
+        debug: {
+          total: data?.length || 0,
+          videoSparkles: videoSparkles.length,
+          imageSparkles: imageSparkles.length,
+          problematicSparkles: problematicSparkles.length,
+          videoUrls: videoSparkles.map((s: any) => ({ id: s.id, title: s.title, video_url: s.video_url })),
+          problematicIds: problematicSparkles.map((s: any) => ({ id: s.id, title: s.title }))
+        }
+      });
     }
 
     return c.json({ success: true, data });
@@ -1066,10 +2052,33 @@ export async function deleteSparkle(c: Context) {
     const id = c.req.param("id");
     const supabase = supabaseClient();
 
-    const { data: sparkle } = await supabase.from("sparkle").select("storage_path").eq("id", id).single();
+    // Fetch paths for both cover image and video
+    const { data: sparkle } = await supabase
+      .from("sparkle")
+      .select("storage_path, video_url")
+      .eq("id", id)
+      .single();
 
+    // Delete cover image if present
     if (sparkle?.storage_path) {
       await deleteFile("sparkle", sparkle.storage_path);
+    }
+
+    // Delete video file if present and hosted in this sparkle bucket
+    if (sparkle?.video_url) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const publicPrefix = `${supabaseUrl}/storage/v1/object/public/sparkle/`;
+
+        if (sparkle.video_url.startsWith(publicPrefix)) {
+          const videoPath = sparkle.video_url.slice(publicPrefix.length);
+          await deleteFile("sparkle", videoPath);
+        } else {
+          console.warn("[deleteSparkle] Skipping video delete - not in sparkle bucket:", sparkle.video_url);
+        }
+      } catch (e) {
+        console.error("[deleteSparkle] Error deleting video file:", e);
+      }
     }
 
     const { error } = await supabase.from("sparkle").delete().eq("id", id);
@@ -1409,6 +2418,63 @@ export async function getCategories(c: Context) {
 
     return c.json({ success: true, data });
   } catch (error: any) {
+    return c.json({ error: error.message }, 500);
+  }
+}
+
+// ====================================================================
+// STORAGE MONITOR ROUTES
+// ====================================================================
+
+export async function getStorageStats(c: Context) {
+  try {
+    const supabase = supabaseClient();
+
+    // Define the buckets we want to monitor
+    const buckets = ['wallpapers', 'banners', 'media', 'photos', 'sparkle'];
+
+    // We'll aggregate stats by iterating each bucket
+    // Note: We can only list top-level files or we need recursive listing for folders.
+    // For now, we assume a flat structure or just check the root.
+    // If folders exist (like in wallpapers), we should try to list recursively or simply accept this is an an approximation.
+    // Since `storage.objects` schema access requires special permissions/config, this is the safer fallback.
+
+    const bucketStatsPromises = buckets.map(async (bucketName) => {
+      try {
+        // Limit to 1000 files for performance check
+        const { data, error } = await supabase.storage.from(bucketName).list('', { limit: 1000, offset: 0 });
+
+        if (error) {
+          console.warn(`[Storage Stats] Error listing bucket ${bucketName}:`, error);
+          return { name: bucketName, size: 0, count: 0 };
+        }
+
+        if (!data) return { name: bucketName, size: 0, count: 0 };
+
+        // Aggregate size and count
+        const totalSize = data.reduce((acc, file) => acc + (file.metadata?.size || 0), 0);
+        const count = data.length;
+
+        return {
+          name: bucketName,
+          size: totalSize,
+          count: count
+        };
+      } catch (err) {
+        console.error(`[Storage Stats] Exception for bucket ${bucketName}:`, err);
+        return { name: bucketName, size: 0, count: 0 };
+      }
+    });
+
+    const results = await Promise.all(bucketStatsPromises);
+
+    return c.json({
+      success: true,
+      data: results,
+      totalSize: results.reduce((acc, curr) => acc + curr.size, 0)
+    });
+  } catch (error: any) {
+    console.error("[Storage Stats] Error:", error);
     return c.json({ error: error.message }, 500);
   }
 }

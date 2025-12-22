@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 
 // Analytics Event Types
 export type AnalyticsEvent = 
@@ -27,23 +26,9 @@ export function useAnalytics() {
         timestamp: new Date().toISOString(),
         metadata,
       };
-
-      // Send to backend
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/ask-gugan/analytics`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify(analyticsData),
-        }
-      );
-
-      if (!response.ok) {
-        console.error('[Analytics] Failed to track event:', eventType);
-      }
+      // Backend analytics is temporarily disabled during AI backend refactor.
+      // Keep this hook for future wiring but do not call any remote endpoints.
+      console.log('[Analytics][stub]', analyticsData);
     } catch (error) {
       console.error('[Analytics] Error tracking event:', error);
     }
@@ -104,23 +89,16 @@ export function useAnalyticsDashboard(userId?: string) {
     try {
       setLoading(true);
       setError(null);
-
-      const endpoint = userId
-        ? `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/ask-gugan/analytics/${userId}?range=${timeRange}`
-        : `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/ask-gugan/analytics/all?range=${timeRange}`;
-
-      const response = await fetch(endpoint, {
-        headers: {
-          Authorization: `Bearer ${publicAnonKey}`,
-        },
+      // Stubbed analytics data while backend is being refactored.
+      // Keep the dashboard UI but show zeroed metrics.
+      setData({
+        total_interactions: 0,
+        active_users: 0,
+        voice_percent: 0,
+        text_percent: 100,
+        feature_usage: {},
+        sentiment: {},
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch analytics');
-      }
-
-      const analyticsData = await response.json();
-      setData(analyticsData);
     } catch (err: any) {
       console.error('[Analytics Dashboard] Error:', err);
       setError(err.message);

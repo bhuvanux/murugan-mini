@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { Button } from './ui/button';
 import { toast } from 'sonner@2.0.3';
-import { Database, Loader2 } from 'lucide-react';
+import { Database } from 'lucide-react';
+import { MuruganLoader } from './MuruganLoader';
 
 export function SeedDataButton() {
   const [loading, setLoading] = useState(false);
@@ -51,7 +52,7 @@ export function SeedDataButton() {
     >
       {loading ? (
         <>
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <MuruganLoader variant="button" />
           Loading...
         </>
       ) : (

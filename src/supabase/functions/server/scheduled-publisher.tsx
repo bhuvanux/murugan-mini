@@ -11,6 +11,7 @@
 import type { Context } from "npm:hono";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import * as kv from "./kv_store.tsx";
+import { deleteFile } from "./storage-init.tsx";
 
 const supabaseClient = () =>
   createClient(
@@ -189,6 +190,7 @@ export async function publishScheduledContent(c: Context) {
     const results: any = {
       wallpapers: { published: 0, total: 0 },
       banners: { published: 0, total: 0 },
+      quotes: { published: 0, total: 0, expired: 0, deleted: 0 },
     };
 
     // Publish scheduled wallpapers
@@ -215,7 +217,24 @@ export async function publishScheduledContent(c: Context) {
       console.error("[Scheduled Publisher] Error publishing banners:", error);
     }
 
-    const totalPublished = results.wallpapers.published + results.banners.published;
+    // Rotate daily quotes (publish today's & expire old)
+    try {
+      const quoteResult = await publishScheduledQuotes(c);
+      const quoteData = await quoteResult.json();
+      results.quotes = {
+        published: quoteData.published || 0,
+        total: quoteData.total || 0,
+        expired: quoteData.expired || 0,
+        deleted: quoteData.deleted || 0,
+      };
+    } catch (error: any) {
+      console.error("[Scheduled Publisher] Error rotating quotes:", error);
+    }
+
+    const totalPublished =
+      results.wallpapers.published +
+      results.banners.published +
+      results.quotes.published;
 
     console.log(`[Scheduled Publisher] ✅ Completed - Published ${totalPublished} items`);
 
@@ -226,6 +245,129 @@ export async function publishScheduledContent(c: Context) {
     });
   } catch (error: any) {
     console.error("[Scheduled Publisher] Error:", error);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+}
+
+function toISODateUTC(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+export async function publishScheduledQuotes(c: Context) {
+  try {
+    const supabase = supabaseClient();
+    const now = new Date();
+    const today = toISODateUTC(now);
+
+    // 1) Expire old published quotes (and optionally delete)
+    const { data: oldQuotes, error: oldError } = await supabase
+      .from("daily_quotes")
+      .select("id, storage_path, auto_delete")
+      .eq("publish_status", "published")
+      .lt("scheduled_for", today);
+
+    if (oldError) {
+      console.warn("[Scheduled Quotes] Unable to query old quotes:", oldError);
+    }
+
+    let expired = 0;
+    let deleted = 0;
+    const deleteIds: string[] = [];
+
+    for (const q of oldQuotes || []) {
+      if ((q as any).auto_delete) {
+        deleteIds.push((q as any).id);
+        if ((q as any).storage_path) {
+          await deleteFile("quotes", (q as any).storage_path);
+        }
+        deleted++;
+      } else {
+        const { error: expireErr } = await supabase
+          .from("daily_quotes")
+          .update({ publish_status: "expired", updated_at: new Date().toISOString() })
+          .eq("id", (q as any).id);
+
+        if (!expireErr) expired++;
+      }
+    }
+
+    if (deleteIds.length) {
+      await supabase.from("daily_quotes").delete().in("id", deleteIds);
+    }
+
+    // 2) If today already has a published quote, do nothing
+    const { data: alreadyPublished, error: publishedError } = await supabase
+      .from("daily_quotes")
+      .select("id")
+      .eq("scheduled_for", today)
+      .eq("publish_status", "published")
+      .limit(1);
+
+    if (publishedError) {
+      console.warn("[Scheduled Quotes] Unable to query published quote:", publishedError);
+    }
+
+    if (alreadyPublished && alreadyPublished.length > 0) {
+      return c.json({
+        success: true,
+        message: "Quote already published for today",
+        published: 0,
+        total: 0,
+        expired,
+        deleted,
+      });
+    }
+
+    // 3) Publish the oldest scheduled/draft quote for today
+    const { data: candidates, error: candError } = await supabase
+      .from("daily_quotes")
+      .select("id")
+      .eq("scheduled_for", today)
+      .in("publish_status", ["scheduled", "draft"])
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (candError) {
+      console.warn("[Scheduled Quotes] Unable to query candidates:", candError);
+      return c.json({ success: true, published: 0, total: 0, expired, deleted });
+    }
+
+    if (!candidates || candidates.length === 0) {
+      return c.json({
+        success: true,
+        message: "No quotes due for publishing",
+        published: 0,
+        total: 0,
+        expired,
+        deleted,
+      });
+    }
+
+    const targetId = (candidates[0] as any).id;
+    const { error: publishErr } = await supabase
+      .from("daily_quotes")
+      .update({
+        publish_status: "published",
+        published_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", targetId);
+
+    if (publishErr) {
+      console.error("[Scheduled Quotes] Publish failed:", publishErr);
+      return c.json({ success: false, error: publishErr.message, expired, deleted }, 500);
+    }
+
+    return c.json({
+      success: true,
+      message: "Published today's quote",
+      published: 1,
+      total: 1,
+      expired,
+      deleted,
+    });
+  } catch (error: any) {
+    console.error("[Scheduled Quotes] Error:", error);
     return c.json({ success: false, error: error.message }, 500);
   }
 }

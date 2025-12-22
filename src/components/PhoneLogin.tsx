@@ -5,7 +5,8 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Alert, AlertDescription } from './ui/alert';
 import { toast } from 'sonner@2.0.3';
-import { Smartphone, Loader2, AlertCircle } from 'lucide-react';
+import { Smartphone, AlertCircle } from 'lucide-react';
+import { MuruganLoader } from './MuruganLoader';
 
 export function PhoneLogin() {
   const [phone, setPhone] = useState('');
@@ -141,7 +142,7 @@ export function PhoneLogin() {
                   <Button type="submit" className="w-full" style={{ background: '#0d5e38' }} disabled={loading}>
                     {loading ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <MuruganLoader variant="button" className="mr-2" />
                         Sending...
                       </>
                     ) : (
@@ -175,7 +176,7 @@ export function PhoneLogin() {
                   <Button type="submit" className="w-full" style={{ background: '#0d5e38' }} disabled={loading}>
                     {loading ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <MuruganLoader variant="button" className="mr-2" />
                         Verifying...
                       </>
                     ) : (
@@ -226,7 +227,7 @@ export function PhoneLogin() {
               <Button type="submit" className="w-full" style={{ background: '#0d5e38' }} disabled={loading}>
                 {loading ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <MuruganLoader variant="button" className="mr-2" />
                     Signing in...
                   </>
                 ) : (

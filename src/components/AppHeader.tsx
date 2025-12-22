@@ -1,5 +1,5 @@
 import React from "react";
-import kolamPattern from "figma:asset/b3ac2b3a02519330f1ea65a656a1877f2890715f.png";
+import kolamPattern from "../custom-assets/kolam.png";
 
 interface AppHeaderProps {
   title: string;

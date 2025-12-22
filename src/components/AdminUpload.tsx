@@ -4,22 +4,22 @@ import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Card } from './ui/card';
-import { toast } from 'sonner@2.0.3';
-import { Upload, Loader2, Image, Video } from 'lucide-react';
-import { Badge } from './ui/badge';
+import { toast } from 'sonner';
+import { Upload, Video, Music } from 'lucide-react';
 import { SeedDataButton } from './SeedDataButton';
+import { MuruganLoader } from './MuruganLoader';
 
 export function AdminUpload() {
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
-    description: '',
-    tags: '',
-    type: 'image' as 'image' | 'video',
-    downloadable: true,
+    category: '',
+    type: 'song' as 'song' | 'video',
+    youtubeUrl: '',
+    isDraft: false,
+    scheduleDate: '',
   });
   const [file, setFile] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
@@ -32,8 +32,8 @@ export function AdminUpload() {
       setPreviewUrl(URL.createObjectURL(selectedFile));
       
       // Auto-detect type
-      if (selectedFile.type.startsWith('image/')) {
-        setFormData({ ...formData, type: 'image' });
+      if (selectedFile.type.startsWith('audio/')) {
+        setFormData({ ...formData, type: 'song' });
       } else if (selectedFile.type.startsWith('video/')) {
         setFormData({ ...formData, type: 'video' });
       }
@@ -48,7 +48,7 @@ export function AdminUpload() {
   };
 
   const uploadFile = async (file: File, bucket: string, path: string) => {
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(bucket)
       .upload(path, file, {
         cacheControl: '3600',
@@ -81,7 +81,7 @@ export function AdminUpload() {
 
     try {
       // Upload main file
-      const bucket = formData.type === 'image' ? 'media-images' : 'media-videos';
+      const bucket = formData.type === 'song' ? 'media-audio' : 'media-videos';
       const timestamp = Date.now();
       const extension = file.name.split('.').pop();
       const filename = `${timestamp}.${extension}`;
@@ -96,10 +96,20 @@ export function AdminUpload() {
         thumbnailUrl = await uploadFile(thumbnailFile, 'media-images', thumbFilename);
       }
 
-      // Get video duration if it's a video
-      let durationSeconds = null;
-      if (formData.type === 'video') {
-        durationSeconds = await getVideoDuration(file);
+      // Prepare payload for Supabase
+      const payload: any = {
+        title: formData.title,
+        category: formData.category,
+        type: formData.type,
+        youtubeUrl: formData.youtubeUrl,
+        thumbnailUrl: thumbnailUrl,
+        isDraft: formData.isDraft,
+        scheduleDate: formData.scheduleDate || null,
+      };
+      if (formData.type === 'song') {
+        payload.audioUrl = storagePath;
+      } else if (formData.type === 'video') {
+        payload.videoUrl = storagePath;
       }
 
       // Create media record via API
@@ -111,17 +121,7 @@ export function AdminUpload() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${publicAnonKey}`,
           },
-          body: JSON.stringify({
-            title: formData.title,
-            description: formData.description,
-            tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
-            type: formData.type,
-            storage_path: storagePath,
-            thumbnail_url: thumbnailUrl,
-            duration_seconds: durationSeconds,
-            downloadable: formData.downloadable,
-            uploader: 'admin',
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
@@ -135,10 +135,11 @@ export function AdminUpload() {
       // Reset form
       setFormData({
         title: '',
-        description: '',
-        tags: '',
-        type: 'image',
-        downloadable: true,
+        category: '',
+        type: 'song',
+        youtubeUrl: '',
+        isDraft: false,
+        scheduleDate: '',
       });
       setFile(null);
       setThumbnailFile(null);
@@ -149,18 +150,6 @@ export function AdminUpload() {
     } finally {
       setUploading(false);
     }
-  };
-
-  const getVideoDuration = (file: File): Promise<number> => {
-    return new Promise((resolve) => {
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
-        resolve(Math.floor(video.duration));
-      };
-      video.src = URL.createObjectURL(file);
-    });
   };
 
   return (
@@ -186,29 +175,27 @@ export function AdminUpload() {
           <Upload className="w-6 h-6 text-orange-500" />
           <h2 className="text-orange-600">Admin: Upload Media</h2>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="file">Media File *</Label>
             <Input
               id="file"
               type="file"
-              accept="image/*,video/*"
+              accept="audio/*,video/*"
               onChange={handleFileChange}
               required
               className="mt-1"
             />
             {previewUrl && (
               <div className="mt-2">
-                {formData.type === 'image' ? (
-                  <img src={previewUrl} alt="Preview" className="w-full h-48 object-cover rounded" />
+                {formData.type === 'song' ? (
+                  <audio src={previewUrl} controls className="w-full" />
                 ) : (
                   <video src={previewUrl} className="w-full h-48 object-cover rounded" controls />
                 )}
               </div>
             )}
           </div>
-
           {formData.type === 'video' && (
             <div>
               <Label htmlFor="thumbnail">Video Thumbnail *</Label>
@@ -222,12 +209,11 @@ export function AdminUpload() {
               />
             </div>
           )}
-
           <div>
             <Label htmlFor="type">Type *</Label>
             <Select
               value={formData.type}
-              onValueChange={(value: 'image' | 'video') =>
+              onValueChange={(value: 'song' | 'video') =>
                 setFormData({ ...formData, type: value })
               }
             >
@@ -235,10 +221,10 @@ export function AdminUpload() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="image">
+                <SelectItem value="song">
                   <div className="flex items-center gap-2">
-                    <Image className="w-4 h-4" />
-                    Image
+                    <Music className="w-4 h-4" />
+                    Song
                   </div>
                 </SelectItem>
                 <SelectItem value="video">
@@ -250,7 +236,6 @@ export function AdminUpload() {
               </SelectContent>
             </Select>
           </div>
-
           <div>
             <Label htmlFor="title">Title *</Label>
             <Input
@@ -259,57 +244,55 @@ export function AdminUpload() {
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               required
-              placeholder="Lord Murugan with Peacock"
+              placeholder="Song or Video Title"
               className="mt-1"
             />
           </div>
-
           <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Brief description of the media"
-              className="mt-1"
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="tags">Tags (comma-separated)</Label>
+            <Label htmlFor="category">Category *</Label>
             <Input
-              id="tags"
+              id="category"
               type="text"
-              value={formData.tags}
-              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-              placeholder="murugan, peacock, devotional"
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              required
+              placeholder="e.g. Devotional, Bhajan, Kids, etc."
               className="mt-1"
             />
-            {formData.tags && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {formData.tags.split(',').map((tag, i) => (
-                  <Badge key={i} variant="secondary">
-                    {tag.trim()}
-                  </Badge>
-                ))}
-              </div>
-            )}
           </div>
-
+          <div>
+            <Label htmlFor="youtubeUrl">YouTube URL</Label>
+            <Input
+              id="youtubeUrl"
+              type="text"
+              value={formData.youtubeUrl}
+              onChange={(e) => setFormData({ ...formData, youtubeUrl: e.target.value })}
+              placeholder="https://youtube.com/..."
+              className="mt-1"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
-              id="downloadable"
-              checked={formData.downloadable}
-              onChange={(e) => setFormData({ ...formData, downloadable: e.target.checked })}
+              id="isDraft"
+              checked={formData.isDraft}
+              onChange={(e) => setFormData({ ...formData, isDraft: e.target.checked })}
               className="w-4 h-4"
             />
-            <Label htmlFor="downloadable" className="cursor-pointer">
-              Allow users to download
+            <Label htmlFor="isDraft" className="cursor-pointer">
+              Save as Draft
             </Label>
           </div>
-
+          <div>
+            <Label htmlFor="scheduleDate">Schedule Date</Label>
+            <Input
+              id="scheduleDate"
+              type="date"
+              value={formData.scheduleDate}
+              onChange={(e) => setFormData({ ...formData, scheduleDate: e.target.value })}
+              className="mt-1"
+            />
+          </div>
           <Button
             type="submit"
             disabled={uploading}
@@ -317,7 +300,7 @@ export function AdminUpload() {
           >
             {uploading ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <MuruganLoader variant="button" className="mr-2" />
                 Uploading...
               </>
             ) : (

@@ -99,13 +99,10 @@ export function SparkleAnalyticsDrawer({
       setLoading(true);
       setError(null);
 
-      const params = new URLSearchParams({
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
-      });
-
+      // Use unified analytics stats endpoint so we don't depend on the
+      // separate sparkle analytics edge function (which may be outdated).
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/analytics/sparkle/${sparkleId}?${params}`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/analytics/stats/sparkle/${sparkleId}`,
         {
           headers: {
             Authorization: `Bearer ${publicAnonKey}`,
@@ -115,15 +112,57 @@ export function SparkleAnalyticsDrawer({
 
       const result = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok || !result.success) {
         throw new Error(result.error || "Failed to load analytics");
       }
 
-      if (result.success) {
-        setAnalytics(result.data);
-      } else {
-        throw new Error(result.error || "Failed to load analytics");
-      }
+      const stats = (result.stats || {}) as Record<string, number>;
+
+      const totalViews = (stats.view ?? stats.read ?? 0) as number;
+      const totalLikes = (stats.like ?? 0) as number;
+      const totalShares = (stats.share ?? 0) as number;
+      const totalComments = (stats.comment ?? 0) as number;
+
+      const interactions = totalLikes + totalShares;
+      const engagementRate = totalViews > 0 ? (interactions / totalViews) * 100 : 0;
+      const viralityScore = totalViews > 0 ? (totalShares / totalViews) * 100 : 0;
+
+      const syntheticAnalytics: SparkleAnalytics = {
+        sparkle_id: sparkleId,
+        title: "",
+        image_url: "",
+        thumbnail_url: "",
+        date_range: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+          days: Math.max(
+            1,
+            Math.ceil(
+              (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+            )
+          ),
+        },
+        total_views: totalViews,
+        total_likes: totalLikes,
+        total_shares: totalShares,
+        total_comments: totalComments,
+        range_views: undefined,
+        range_likes: undefined,
+        range_shares: undefined,
+        views_today: 0,
+        views_week: 0,
+        views_month: 0,
+        likes_today: 0,
+        likes_week: 0,
+        likes_month: 0,
+        engagement_rate: Number(engagementRate.toFixed(2)),
+        virality_score: Number(viralityScore.toFixed(2)),
+        daily_stats: [],
+        created_at: new Date().toISOString(),
+        last_interaction: undefined,
+      };
+
+      setAnalytics(syntheticAnalytics);
     } catch (err: any) {
       console.error("[SparkleAnalytics] Load error:", err);
       setError(err.message);

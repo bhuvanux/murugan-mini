@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { Search, Plus, Loader2 } from "lucide-react";
-import imgSparkIcon from "figma:asset/1c07a5ebea0879d9c6f92eb876c88c63c6de2a3c.png";
-import muruganAvatar from "figma:asset/d5f2b8db8be54cd7632e2a54ce5388d6337b0c00.png";
+import { useState, useEffect } from "react";
+import { Search, Plus } from "lucide-react";
+import muruganAvatar from "../custom-assets/kid-murugan.png";
 import { OptimizedImage, SmartText } from "./OptimizedImage";
 import { AppHeader } from "./AppHeader";
-import { projectId, publicAnonKey } from "../utils/supabase/info";
+import { MuruganLoader } from "./MuruganLoader";
 
 interface Chat {
   id: string;
@@ -30,57 +29,16 @@ export function AskGuganScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load conversations from backend
+  // Load conversations (stubbed while backend is being refactored)
   useEffect(() => {
     loadConversations();
   }, [userId]);
 
   const loadConversations = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/ask-gugan/conversations/${userId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to load conversations: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success && data.conversations) {
-        // Transform backend format to frontend format
-        const transformedChats: Chat[] = data.conversations.map(
-          (conv: any) => ({
-            id: conv.id,
-            title: conv.title || "New Conversation",
-            lastMessage: conv.preview || conv.lastMessage || "",
-            timestamp: formatTimestamp(conv.timestamp),
-            messageCount: conv.messageCount || 0,
-          })
-        );
-
-        setChats(transformedChats);
-        console.log(
-          `[Ask Gugan] ✅ Loaded ${transformedChats.length} conversations`
-        );
-      } else {
-        setChats([]);
-      }
-    } catch (error: any) {
-      console.error("[Ask Gugan] Error loading conversations:", error);
-      setError(error.message);
-      setChats([]);
-    } finally {
-      setLoading(false);
-    }
+    // For now, do not call any backend. Keep UI intact with an empty list.
+    setError(null);
+    setChats([]);
+    setLoading(false);
   };
 
   const formatTimestamp = (timestamp: string): string => {
@@ -147,8 +105,8 @@ export function AskGuganScreen({
       {/* SECTION C - CHAT LIST */}
       <div className="bg-white min-h-[calc(100vh-200px)]">
         {loading ? (
-          <div className="py-20 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#0d5e38]" />
+          <div className="min-h-[calc(100vh-200px)] flex flex-col items-center justify-center text-center px-6">
+            <MuruganLoader variant="page" />
             <p className="text-gray-500 mt-4">Loading conversations...</p>
           </div>
         ) : error ? (
@@ -234,7 +192,7 @@ export function AskGuganScreen({
                     {chat.title}
                   </SmartText>
                   <span className="text-[12px] text-[#6B767E] ml-2 flex-shrink-0 font-english-body">
-                    {chat.timestamp}
+                    {formatTimestamp(chat.timestamp)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

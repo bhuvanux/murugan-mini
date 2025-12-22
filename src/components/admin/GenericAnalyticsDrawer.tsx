@@ -119,29 +119,43 @@ export function GenericAnalyticsDrawer({
       setError(null);
 
       // Build URL with date range params if provided
-      let url = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/${moduleName}s/${itemId}/analytics`;
+      let url: string;
       const params = new URLSearchParams();
-      if (startDate) params.append('start_date', startDate.toISOString());
-      if (endDate) params.append('end_date', endDate.toISOString());
-      if (params.toString()) url += `?${params.toString()}`;
+      if (startDate) params.append("start_date", startDate.toISOString());
+      if (endDate) params.append("end_date", endDate.toISOString());
+
+      if (moduleName === "sparkle") {
+        // Sparkles use the unified analytics stats endpoint
+        url = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/analytics/stats/sparkle/${itemId}`;
+      } else {
+        // Wallpapers / banners / media keep their per-module analytics endpoints
+        url = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/${moduleName}s/${itemId}/analytics`;
+      }
+
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
 
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          Authorization: `Bearer ${publicAnonKey}`,
         },
       });
 
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to load analytics');
+        throw new Error(result.error || "Failed to load analytics");
       }
 
-      setAnalytics(result.data);
+      // Unified stats endpoint returns { success, stats },
+      // legacy per-module endpoints return { success, data }
+      const payload = moduleName === "sparkle" ? result.stats : result.data;
+      setAnalytics(payload);
     } catch (error: any) {
       console.error(`[${moduleName} Analytics] Failed to load analytics:`, error);
       setError(error.message);
-      toast.error('Failed to load analytics');
+      toast.error("Failed to load analytics");
     } finally {
       setLoading(false);
     }

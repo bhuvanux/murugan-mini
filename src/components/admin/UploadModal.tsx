@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
-import { X, Upload, Loader2, AlertCircle, CheckCircle, Trash2, FolderPlus, Calendar } from "lucide-react";
+import { createPortal } from "react-dom";
+import { X, Upload, Loader2, CheckCircle, FolderPlus, Calendar } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { Calendar as CalendarComponent } from "../ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -22,6 +23,123 @@ interface FileItem {
   id: string;
 }
 
+async function compressImageToWebp(file: File): Promise<{ file: File; compressed: boolean }> {
+  if (!file.type.startsWith("image/")) {
+    return { file, compressed: false };
+  }
+
+  try {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = url;
+    });
+    URL.revokeObjectURL(url);
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return { file, compressed: false };
+
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/webp", 0.82),
+    );
+
+    if (!blob) return { file, compressed: false };
+
+    // Only keep if we actually reduced size meaningfully
+    if (blob.size >= file.size * 0.95) {
+      return { file, compressed: false };
+    }
+
+    const outName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+    const outFile = new File([blob], outName, { type: "image/webp" });
+    return { file: outFile, compressed: true };
+  } catch {
+    return { file, compressed: false };
+  }
+}
+
+async function compressVideoBestEffort(file: File): Promise<{ file: File; compressed: boolean; method?: string }> {
+  if (!file.type.startsWith("video/")) {
+    return { file, compressed: false };
+  }
+
+  // Best-effort: use MediaRecorder to re-encode with lower bitrate when supported.
+  // If not supported (common on some browsers), fall back to original.
+  try {
+    const mimeCandidates = [
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+    ];
+
+    const mimeType = mimeCandidates.find((m) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(m));
+    if (!mimeType) return { file, compressed: false };
+
+    const videoEl = document.createElement("video");
+    videoEl.muted = true;
+    videoEl.playsInline = true;
+    videoEl.preload = "auto";
+    const url = URL.createObjectURL(file);
+    videoEl.src = url;
+    await new Promise<void>((resolve, reject) => {
+      videoEl.onloadedmetadata = () => resolve();
+      videoEl.onerror = () => reject(new Error("Failed to load video"));
+    });
+
+    const stream = (videoEl as any).captureStream?.();
+    if (!stream) {
+      URL.revokeObjectURL(url);
+      return { file, compressed: false };
+    }
+
+    const chunks: BlobPart[] = [];
+    const recorder = new MediaRecorder(stream, {
+      mimeType,
+      videoBitsPerSecond: 1_200_000,
+    });
+
+    const resultBlob: Blob = await new Promise((resolve, reject) => {
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+      recorder.onerror = () => reject(new Error("Video compression failed"));
+      recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+      recorder.start(250);
+      videoEl.currentTime = 0;
+      videoEl.play().catch(() => {
+        // Some browsers require user gesture; in that case, bail.
+        recorder.stop();
+      });
+      setTimeout(() => {
+        try {
+          recorder.stop();
+        } catch {
+          // ignore
+        }
+      }, Math.min(15_000, Math.max(3_000, (videoEl.duration || 3) * 1000)));
+    });
+
+    URL.revokeObjectURL(url);
+
+    if (resultBlob.size >= file.size * 0.95) {
+      return { file, compressed: false };
+    }
+
+    const outName = file.name.replace(/\.[^/.]+$/, "") + ".webm";
+    const outFile = new File([resultBlob], outName, { type: mimeType });
+    return { file: outFile, compressed: true, method: "mediarecorder" };
+  } catch {
+    return { file, compressed: false };
+  }
+}
+
 export function UploadModal({
   isOpen,
   onClose,
@@ -38,6 +156,9 @@ export function UploadModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+
+  const isSparkleUpload = uploadType === "sparkle";
+  const maxFiles = (uploadType === "sparkle" || uploadType === "wallpaper") ? 15 : 50;
 
   // Form fields
   const [formData, setFormData] = useState({
@@ -66,13 +187,22 @@ export function UploadModal({
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
+    const remainingSlots = Math.max(0, maxFiles - selectedFiles.length);
+    if (remainingSlots <= 0) {
+      toast.error(`You can upload a maximum of ${maxFiles} files at a time`);
+      return;
+    }
+
     const newFiles: FileItem[] = [];
 
-    files.forEach((file) => {
-      // Validate file size (max 100MB for videos, 50MB for images)
-      const maxSize = file.type.startsWith("video/") ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
+    files.slice(0, remainingSlots).forEach((file) => {
+      const isVideo = file.type.startsWith("video/");
+      const maxSize = isVideo ? 200 * 1024 * 1024 : 50 * 1024 * 1024;
+
       if (file.size > maxSize) {
-        toast.error(`${file.name}: File size must be less than ${file.type.startsWith("video/") ? "100MB" : "50MB"}`);
+        toast.error(
+          `${file.name}: File size must be less than ${isVideo ? "200MB" : "50MB"}`,
+        );
         return;
       }
 
@@ -82,12 +212,14 @@ export function UploadModal({
         id: Math.random().toString(36).substring(7),
       };
 
-      // Create preview for images and videos
       if (file.type.startsWith("image/")) {
         const reader = new FileReader();
         reader.onloadend = () => {
           fileItem.preview = reader.result as string;
-          setSelectedFiles((prev) => [...prev.filter(f => f.id !== fileItem.id), fileItem]);
+          setSelectedFiles((prev) => [
+            ...prev.filter((existing) => existing.id !== fileItem.id),
+            fileItem,
+          ]);
         };
         reader.readAsDataURL(file);
       } else if (file.type.startsWith("video/")) {
@@ -99,7 +231,6 @@ export function UploadModal({
 
     setSelectedFiles((prev) => [...prev, ...newFiles]);
 
-    // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -131,10 +262,8 @@ export function UploadModal({
   };
 
   const handleUpload = async () => {
-    // For wallpapers, title is optional
-    // For single file uploads or other types, title is mandatory
-    const isTitleRequired = uploadType !== "wallpaper" && selectedFiles.length === 1;
-    
+    const isTitleRequired = uploadType !== "wallpaper" && uploadType !== "sparkle" && selectedFiles.length === 1;
+
     if (isTitleRequired && !formData.title.trim()) {
       toast.error("Please enter a title");
       return;
@@ -146,10 +275,22 @@ export function UploadModal({
         return;
       }
     } else {
-      if (selectedFiles.length === 0) {
+      const hasFiles = selectedFiles.length > 0;
+
+      if (uploadType === "sparkle") {
+        if (!hasFiles) {
+          toast.error("Please upload a sparkle image or video");
+          return;
+        }
+      } else if (!hasFiles) {
         toast.error("Please select at least one file");
         return;
       }
+    }
+
+    if ((uploadType === "sparkle" || uploadType === "wallpaper") && selectedFiles.length > maxFiles) {
+      toast.error(`You can upload a maximum of ${maxFiles} files at a time`);
+      return;
     }
 
     // Validate scheduled date
@@ -166,19 +307,55 @@ export function UploadModal({
         setUploadProgress((prev) => Math.min(prev + 5, 90));
       }, 300);
 
-      // Upload all files
-      const uploadPromises = selectedFiles.map(async (fileItem, index) => {
+      const uploaded: any[] = [];
+      const errors: Array<{ name: string; error: string }> = [];
+
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const fileItem = selectedFiles[i];
+        const fallbackTitle = fileItem.file.name.replace(/\.[^/.]+$/, "");
+
+        const originalBytes = fileItem.file.size;
+        let workingFile = fileItem.file;
+        let compressedBytes = originalBytes;
+        let compressionApplied = false;
+        let compressionMethod: string | undefined;
+
+        if (workingFile.type.startsWith("image/")) {
+          const res = await compressImageToWebp(workingFile);
+          workingFile = res.file;
+          compressedBytes = res.file.size;
+          compressionApplied = res.compressed;
+          compressionMethod = res.compressed ? "canvas-webp" : undefined;
+        } else if (workingFile.type.startsWith("video/")) {
+          const res = await compressVideoBestEffort(workingFile);
+          workingFile = res.file;
+          compressedBytes = res.file.size;
+          compressionApplied = res.compressed;
+          compressionMethod = res.method;
+        }
+
         const uploadData: any = {
-          // Use file name as title if title is not provided
-          title: formData.title || fileItem.file.name.replace(/\.[^/.]+$/, ""),
+          title:
+            uploadType === "sparkle"
+              ? (formData.title.trim() || fallbackTitle)
+              : formData.title || fallbackTitle,
           description: formData.description,
           tags: formData.tags,
           publishStatus: formData.publishStatus,
           folder_id: formData.folderId || undefined,
           scheduled_at: formData.scheduleDate ? formData.scheduleDate.toISOString() : undefined,
+          metadata: JSON.stringify({
+            original_bytes: originalBytes,
+            compressed_bytes: compressedBytes,
+            compression_applied: compressionApplied,
+            compression_method: compressionMethod,
+            original_mime: fileItem.file.type,
+            final_mime: workingFile.type,
+            original_name: fileItem.file.name,
+            final_name: workingFile.name,
+          }),
         };
 
-        // Add type-specific fields
         if (uploadType === "banner") {
           uploadData.bannerType = formData.bannerType;
         }
@@ -192,21 +369,48 @@ export function UploadModal({
         }
 
         if (uploadType === "sparkle") {
-          uploadData.subtitle = formData.subtitle;
-          uploadData.content = formData.content || formData.description;
+          uploadData.subtitle = formData.subtitle?.trim() || undefined;
+          uploadData.content = formData.content?.trim() || formData.description?.trim() || undefined;
           uploadData.author = formData.author;
+
+          if (workingFile.type.startsWith("video/")) {
+            uploadData.videoFile = workingFile;
+            try {
+              const res = await uploadFunction(null, uploadData);
+              uploaded.push(res);
+            } catch (e: any) {
+              errors.push({ name: fileItem.file.name, error: e?.message || "Upload failed" });
+            }
+
+            setUploadProgress(Math.round(((i + 1) / selectedFiles.length) * 100));
+            continue;
+          }
         }
 
-        return uploadFunction(fileItem.file, uploadData);
-      });
+        try {
+          const res = await uploadFunction(workingFile, uploadData);
+          uploaded.push(res);
+        } catch (e: any) {
+          errors.push({ name: fileItem.file.name, error: e?.message || "Upload failed" });
+        }
 
-      await Promise.all(uploadPromises);
+        setUploadProgress(Math.round(((i + 1) / selectedFiles.length) * 100));
+      }
 
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      const uploadedCount = selectedFiles.length;
-      toast.success(`${uploadedCount} ${title}${uploadedCount > 1 ? "s" : ""} uploaded successfully!`);
+      const uploadedCount = selectedFiles.length - errors.length;
+      if (uploadedCount > 0) {
+        toast.success(`${uploadedCount} ${title}${uploadedCount > 1 ? "s" : ""} uploaded successfully!`);
+      }
+
+      if (errors.length > 0) {
+        toast.error(`${errors.length} upload(s) failed`, {
+          description: errors.slice(0, 3).map((e) => `${e.name}: ${e.error}`).join(" | "),
+          duration: 8000,
+        });
+      }
 
       // Reset form
       setTimeout(() => {
@@ -241,7 +445,9 @@ export function UploadModal({
 
   if (!isOpen) return null;
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
@@ -264,7 +470,7 @@ export function UploadModal({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {uploadType === "media" && formData.mediaType === "audio" ? "Audio File(s)" : ""}
                 {uploadType === "media" && formData.mediaType === "video" ? "Video File(s)" : ""}
-                {uploadType === "sparkle" ? "Cover Image (Optional)" : ""}
+                {uploadType === "sparkle" ? "Sparkle Image or Video" : ""}
                 {uploadType === "wallpaper" || uploadType === "banner" ? "Image or Video File(s)" : ""}
                 {uploadType !== "media" && uploadType !== "sparkle" && uploadType !== "wallpaper" && uploadType !== "banner" ? "Image File(s)" : ""}
               </label>
@@ -313,7 +519,11 @@ export function UploadModal({
               >
                 <div className="space-y-2">
                   <Upload className="w-12 h-12 text-gray-400 mx-auto" />
-                  <p className="text-gray-600">Click to select {selectedFiles.length > 0 ? "more " : ""}file(s)</p>
+                  <p className="text-gray-600">
+                    {isSparkleUpload
+                      ? `Click to select sparkle media (up to ${maxFiles})`
+                      : `Click to select ${selectedFiles.length > 0 ? "more " : ""}file(s)`}
+                  </p>
                   <p className="text-xs text-gray-400">
                     {uploadType === "media" && formData.mediaType === "audio"
                       ? "MP3, WAV (max 50MB each)"
@@ -321,6 +531,8 @@ export function UploadModal({
                       ? "MP4, WebM (max 100MB each)"
                       : uploadType === "wallpaper" || uploadType === "banner"
                       ? "JPG, PNG, WebP, MP4, WebM (Images: max 50MB, Videos: max 100MB)"
+                      : isSparkleUpload
+                      ? "JPG, PNG, WebP (max 50MB) or MP4/WebM (max 200MB)"
                       : "JPG, PNG, WebP (max 50MB each)"}
                   </p>
                   {selectedFiles.length > 0 && (
@@ -340,6 +552,8 @@ export function UploadModal({
                     : uploadType === "media" && formData.mediaType === "video"
                     ? "video/mp4,video/webm"
                     : uploadType === "wallpaper" || uploadType === "banner"
+                    ? "image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/webm"
+                    : isSparkleUpload
                     ? "image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/webm"
                     : "image/jpeg,image/jpg,image/png,image/webp"
                 }
@@ -684,7 +898,10 @@ export function UploadModal({
           </button>
           <button
             onClick={handleUpload}
-            disabled={isUploading || selectedFiles.length === 0}
+            disabled={
+              isUploading ||
+              selectedFiles.length === 0
+            }
             className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {isUploading ? (
@@ -702,6 +919,7 @@ export function UploadModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

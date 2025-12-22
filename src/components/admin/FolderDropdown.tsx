@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Plus, Edit2, Trash2, X, Check, Folder } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface Folder {
   id: string;
@@ -87,7 +87,7 @@ export function FolderDropdown({
     const folder = folders.find((f) => f.id === folderId);
     if (!folder) return;
 
-    if (!confirm(`Delete "${folder.name}"? All wallpapers will be moved to uncategorized.`)) {
+    if (!confirm(`Delete "${folder.name}"? All media will be moved to uncategorized.`)) {
       return;
     }
 
@@ -103,9 +103,9 @@ export function FolderDropdown({
   };
 
   const getSelectedFolderName = () => {
-    if (!selectedFolder) return "All Wallpapers";
+    if (!selectedFolder) return "All Media";
     const folder = folders.find((f) => f.id === selectedFolder);
-    return folder?.name || "All Wallpapers";
+    return folder?.name || "All Media";
   };
 
   return (
@@ -126,7 +126,7 @@ export function FolderDropdown({
       {/* Dropdown Menu */}
       {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-96 overflow-y-auto">
-          {/* All Wallpapers Option */}
+          {/* All Media Option */}
           <button
             onClick={() => {
               onSelectFolder(null);
@@ -139,7 +139,7 @@ export function FolderDropdown({
             <div className="flex items-center gap-3">
               <Folder className={`w-4 h-4 ${!selectedFolder ? "text-green-600" : "text-gray-400"}`} />
               <span className={`text-inter-medium-16 ${!selectedFolder ? "text-green-700" : "text-gray-900"}`}>
-                All Wallpapers
+                All Media
               </span>
             </div>
             <span className={`text-sm ${!selectedFolder ? "text-green-600" : "text-gray-500"}`}>

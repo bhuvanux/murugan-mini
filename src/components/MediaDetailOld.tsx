@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MediaItem, userAPI } from '../utils/api/client';
 import { ImageWithFallback } from './figma/ImageWithFallback';
-import { X, Heart, Download, Loader2, ChevronUp } from 'lucide-react';
+import { X, Heart, Download, ChevronUp } from 'lucide-react';
 import { Button } from './ui/button';
-import { toast } from 'sonner@2.0.3';
 import { Badge } from './ui/badge';
+import { MuruganLoader } from './MuruganLoader';
 
 // WhatsApp icon component
 const WhatsAppIcon = ({ className }: { className?: string }) => (
@@ -307,7 +307,7 @@ export function MediaDetail({
             >
               {downloading ? (
                 <>
-                  <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  <MuruganLoader variant="button" />
                   <span className="text-white text-xs font-medium">Downloading...</span>
                 </>
               ) : (

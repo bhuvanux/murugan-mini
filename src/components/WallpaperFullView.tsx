@@ -9,16 +9,16 @@ import {
   Download,
   Heart,
   X,
-  MessageCircle,
-  Eye,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { MediaItem } from "../utils/api/client";
-import { useWallpaperAnalytics } from "../utils/analytics/useAnalytics";
 import { WhatsAppIcon } from "./icons/WhatsAppIcon";
+import { adService } from "../services/AdService";
+import { AD_CONFIG } from "../config/adConfig";
+import { Loader2 } from "lucide-react";
 
 interface WallpaperFullViewProps {
   media: MediaItem[];
@@ -29,7 +29,8 @@ interface WallpaperFullViewProps {
 export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFullViewProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [likedMedia, setLikedMedia] = useState<Set<string>>(new Set());
-  const [mediaStats, setMediaStats] = useState<Record<string, { likes: number; views: number; downloads: number; shares: number }>>({}); // ✅ Track stats locally
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [adMessage, setAdMessage] = useState("Preparing your wallpaper...");
   const containerRef = useRef<HTMLDivElement>(null);
   // ✅ Cache blobs for instant sharing (fixes permission denied error)
   const blobCache = useRef<Map<string, Blob>>(new Map());
@@ -41,21 +42,7 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
       setLikedMedia(new Set(JSON.parse(saved)));
     }
 
-    // ✅ FIX: Load persisted like counts from localStorage, merge with media data
-    const savedLikeCounts = localStorage.getItem("wallpaper_like_counts");
-    const persistedLikes: Record<string, number> = savedLikeCounts ? JSON.parse(savedLikeCounts) : {};
-    
-    const initialStats: Record<string, { likes: number; views: number; downloads: number; shares: number }> = {};
-    media.forEach(item => {
-      initialStats[item.id] = {
-        // ✅ Use persisted like count if available, otherwise use the count from media
-        likes: persistedLikes[item.id] !== undefined ? persistedLikes[item.id] : (item.likes || 0),
-        views: item.views || 0,
-        downloads: item.downloads || 0,
-        shares: item.shares || 0,
-      };
-    });
-    setMediaStats(initialStats);
+    // ... rest of useEffect
 
     // ✅ Pre-fetch blobs for current and nearby images (for instant sharing)
     const prefetchBlobs = async () => {
@@ -78,7 +65,7 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
         }
       }
     };
-    
+
     prefetchBlobs();
 
     // ✅ Scroll to the correct initial image
@@ -105,7 +92,7 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
     // Track view when index changes
     if (media[currentIndex]) {
       trackView(media[currentIndex].id);
-      
+
       // ✅ Prefetch adjacent images when scrolling
       const prefetchAdjacent = async () => {
         const indicesToPrefetch = [
@@ -126,7 +113,7 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
           }
         }
       };
-      
+
       prefetchAdjacent();
     }
   }, [currentIndex]);
@@ -143,6 +130,8 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
       newIndex < media.length
     ) {
       setCurrentIndex(newIndex);
+      // Increment session actions for ad guardrail
+      adService.incrementActions();
     }
   };
 
@@ -157,7 +146,7 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
 
   const toggleLike = async (mediaId: string) => {
     const isLiked = likedMedia.has(mediaId);
-    
+
     try {
       // Optimistic update - update UI immediately
       setLikedMedia((prev) => {
@@ -174,28 +163,7 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
         return newSet;
       });
 
-      // ✅ FIX: Update the like count in mediaStats immediately and persist to localStorage
-      setMediaStats((prev) => {
-        const currentStats = prev[mediaId] || { likes: 0, views: 0, downloads: 0, shares: 0 };
-        const newLikeCount = isLiked ? Math.max(currentStats.likes - 1, 0) : currentStats.likes + 1;
-        
-        const updatedStats = {
-          ...prev,
-          [mediaId]: {
-            ...currentStats,
-            likes: newLikeCount,
-          },
-        };
-        
-        // ✅ Persist like counts to localStorage
-        const likeCounts: Record<string, number> = {};
-        Object.entries(updatedStats).forEach(([id, stats]) => {
-          likeCounts[id] = stats.likes;
-        });
-        localStorage.setItem("wallpaper_like_counts", JSON.stringify(likeCounts));
-        
-        return updatedStats;
-      });
+
 
       // Track like/unlike on backend using new analytics
       const { analyticsTracker } = await import("../utils/analytics/useAnalytics");
@@ -222,39 +190,18 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
         );
         return newSet;
       });
-      
-      // ✅ Revert the like count on error and update localStorage
-      setMediaStats((prev) => {
-        const currentStats = prev[mediaId] || { likes: 0, views: 0, downloads: 0, shares: 0 };
-        const revertedLikeCount = isLiked ? currentStats.likes + 1 : Math.max(currentStats.likes - 1, 0);
-        
-        const updatedStats = {
-          ...prev,
-          [mediaId]: {
-            ...currentStats,
-            likes: revertedLikeCount,
-          },
-        };
-        
-        // ✅ Update localStorage with reverted counts
-        const likeCounts: Record<string, number> = {};
-        Object.entries(updatedStats).forEach(([id, stats]) => {
-          likeCounts[id] = stats.likes;
-        });
-        localStorage.setItem("wallpaper_like_counts", JSON.stringify(likeCounts));
-        
-        return updatedStats;
-      });
+
+
     }
   };
 
   const handleShare = (mediaItem: MediaItem) => {
     // ✅ Share the actual image file like GPay screenshot sharing
     // Note: Must be called directly from user click (no async delay before share)
-    
+
     // Show loading immediately
     const loadingToast = toast.loading("Preparing image...");
-    
+
     // Fetch and share the image
     const blob = blobCache.current.get(mediaItem.id);
     if (blob) {
@@ -262,40 +209,41 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
       const urlParts = mediaItem.storage_path.split('.');
       const extension = urlParts[urlParts.length - 1].split('?')[0] || 'jpg';
       const mimeType = blob.type || `image/${extension === 'jpg' ? 'jpeg' : extension}`;
-      
+
       // Create File object
       const fileName = `Murugan_Wallpaper.${extension}`;
       const file = new File([blob], fileName, { type: mimeType });
-      
+
       // Dismiss loading
       toast.dismiss(loadingToast);
-      
+
       // Check if sharing is supported
       if (!navigator.share) {
         toast.error("Sharing not supported on this browser. Please use the download button.");
         return;
       }
-      
+
       // Share using Web Share API (opens native share sheet with WhatsApp option)
       navigator.share({
         files: [file],
       })
-      .then(() => {
-        // Track share using analytics (only after successful share)
-        import("../utils/analytics/useAnalytics").then(({ analyticsTracker }) => {
-          analyticsTracker.track('wallpaper', mediaItem.id, 'share');
+        .then(() => {
+          // Track share using analytics (only after successful share)
+          import("../utils/analytics/useAnalytics").then(({ analyticsTracker }) => {
+            analyticsTracker.track('wallpaper', mediaItem.id, 'share');
+            adService.incrementActions();
+          });
+          toast.success("Shared successfully!");
+        })
+        .catch((shareError: any) => {
+          // User cancelled the share - don't show error
+          if (shareError.name === 'AbortError') {
+            return;
+          }
+
+          console.error("Error sharing image:", shareError);
+          toast.error("Failed to share. Please try again.");
         });
-        toast.success("Shared successfully!");
-      })
-      .catch((shareError: any) => {
-        // User cancelled the share - don't show error
-        if (shareError.name === 'AbortError') {
-          return;
-        }
-        
-        console.error("Error sharing image:", shareError);
-        toast.error("Failed to share. Please try again.");
-      });
     } else {
       toast.dismiss(loadingToast);
       console.error("Blob not found for sharing:", mediaItem.id);
@@ -305,24 +253,68 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
 
   const handleDownload = async (mediaItem: MediaItem) => {
     try {
-      // Track download using new analytics
+      // 1. Increment actions for guardrail
+      adService.incrementActions();
+
+      // 2. Track download intent
       const { analyticsTracker } = await import("../utils/analytics/useAnalytics");
       await analyticsTracker.track('wallpaper', mediaItem.id, 'download');
-      
-      toast.success("Downloading...");
-      
-      // Trigger download
-      const link = document.createElement("a");
-      link.href = mediaItem.storage_path;
-      link.download = mediaItem.title || "wallpaper";
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+
+      // 3. Check for Premium or Global Disable to skip modal
+      if (AD_CONFIG.remoteConfig.premiumUserOverride || !AD_CONFIG.remoteConfig.adsEnabled) {
+        triggerDirectDownload(mediaItem);
+        return;
+      }
+
+      // 4. Show Loading Modal & Ad
+      setIsDownloading(true);
+      setAdMessage("Preparing your high-quality wallpaper...");
+
+      // Wait for modal to render and enter animation to start
+      await new Promise(r => setTimeout(r, 600));
+
+      // Try to show banner if enabled
+      // The modal has a backdrop, so the banner (native layer) will sit on top of the webview
+      if (AD_CONFIG.rules.bannersEnabled) {
+        adService.showBanner();
+      }
+
+      // Progress animation simulation - Extended slightly for ad visibility
+      const messages = [
+        "Optimizing for your device...",
+        "Checking file integrity...",
+        "Finalizing download..."
+      ];
+
+      for (let i = 0; i < messages.length; i++) {
+        await new Promise(r => setTimeout(r, 1500)); // 1.5s per step * 3 = 4.5s total
+        setAdMessage(messages[i]);
+      }
+
+      // 5. Cleanup Ad and Modal
+      adService.hideBanner();
+      setIsDownloading(false);
+
+      // 6. Final Download
+      triggerDirectDownload(mediaItem);
+      toast.success("Download started!");
+
     } catch (error) {
-      console.error("Error downloading:", error);
+      console.error("Error in download flow:", error);
+      setIsDownloading(false);
+      adService.hideBanner();
       toast.error("Failed to download");
     }
+  };
+
+  const triggerDirectDownload = (mediaItem: MediaItem) => {
+    const link = document.createElement("a");
+    link.href = mediaItem.storage_path;
+    link.download = mediaItem.title || "wallpaper";
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const currentMedia = media[currentIndex];
@@ -370,11 +362,10 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
           >
             <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center group-hover:bg-white/20 transition-all">
               <Heart
-                className={`w-6 h-6 transition-all ${
-                  likedMedia.has(currentMedia.id)
-                    ? "fill-red-500 text-red-500"
-                    : "text-white group-hover:scale-110"
-                }`}
+                className={`w-6 h-6 transition-all ${likedMedia.has(currentMedia.id)
+                  ? "fill-red-500 text-red-500"
+                  : "text-white group-hover:scale-110"
+                  }`}
               />
             </div>
           </button>
@@ -401,7 +392,56 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{__html: `
+      {/* Download Loading Modal */}
+      {isDownloading && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="w-full max-w-sm bg-[#1A1A1A] border border-white/10 rounded-3xl p-6 flex flex-col items-center text-center shadow-2xl relative overflow-hidden mx-4"
+          >
+            {/* Background Ambient Glow */}
+            <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-purple-500/10 to-transparent pointer-events-none" />
+
+            {/* Icon */}
+            <div className="relative mb-6 mt-2">
+              <div className="absolute inset-0 bg-purple-500/30 blur-xl rounded-full" />
+              <div className="w-16 h-16 bg-white/5 border border-white/10 rounded-full flex items-center justify-center relative z-10 backdrop-blur-sm">
+                <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-semibold text-white mb-2 tracking-tight">
+              Preparing Download
+            </h3>
+
+            <p className="text-white/60 text-sm mb-8 leading-relaxed px-4">
+              {adMessage}
+            </p>
+
+            {/* Ad Container - Reserved Space */}
+            <div className="w-full min-h-[50px] flex items-center justify-center mb-6">
+              {/* Banner ad will overlay here at BOTTOM_CENTER, but we keep this space layout-wise if needed, 
+                     though AdMob Capacitor usually overlays the webview. 
+                     We add a spacer to ensuring content doesn't jump. */}
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-white/5 rounded-full h-1.5 mb-2 overflow-hidden relative">
+              <motion.div
+                initial={{ width: "0%" }}
+                animate={{ width: "100%" }}
+                transition={{ duration: 4.5, ease: "easeInOut" }}
+                className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500"
+              />
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
         }
@@ -422,7 +462,7 @@ function WallpaperCard({ media, isActive }: WallpaperCardProps) {
       <div className="absolute inset-0">
         {media.is_video || media.type === 'video' ? (
           <CustomVideoPlayer
-            src={media.storage_path || media.video_url}
+            src={media.storage_path || media.video_url || ""}
             isActive={isActive}
           />
         ) : (

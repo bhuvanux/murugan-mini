@@ -3,27 +3,24 @@
  * Step-by-step guide for setting up the unified analytics system
  */
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Alert } from "../ui/alert";
 import {
   CheckCircle2,
-  XCircle,
   AlertCircle,
   Database,
   PlayCircle,
   Copy,
   ExternalLink,
   RefreshCw,
-  Code,
   BookOpen,
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
-
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;
+import { fetchAdminResponseWith404Fallback } from "../../utils/adminAPI";
 
 interface AnalyticsStatus {
   installed: boolean;
@@ -46,7 +43,7 @@ export function AnalyticsSetupGuide() {
   const checkStatus = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/admin/status`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/status`, {
         headers: {
           Authorization: `Bearer ${publicAnonKey}`,
         },
@@ -68,7 +65,7 @@ export function AnalyticsSetupGuide() {
 
   const loadInstallGuide = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/admin/install-guide`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/install-guide`, {
         headers: {
           Authorization: `Bearer ${publicAnonKey}`,
         },
@@ -88,7 +85,7 @@ export function AnalyticsSetupGuide() {
     toast.info("Attempting automatic initialization...");
 
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/admin/initialize`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/initialize`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -42,8 +42,8 @@ export function PlanCard({ plan, onViewDetails }: PlanCardProps) {
           
           <div className="flex-1 min-w-0">
             <h4 className="text-white mb-1">30-Day Spiritual Plan</h4>
-            <p className="text-white/90 text-sm">
-              {plan.goal}
+            <p className="text-xs text-gray-600">
+              Begin your journey with a calm mind and sincere prayers.
             </p>
           </div>
         </div>

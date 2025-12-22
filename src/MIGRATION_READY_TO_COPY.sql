@@ -358,6 +358,58 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function to get active users stats for a date range (DAU-style metric)
+CREATE OR REPLACE FUNCTION get_active_users_stats(
+  p_start_date TIMESTAMPTZ DEFAULT NULL,
+  p_end_date   TIMESTAMPTZ DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_start   TIMESTAMPTZ;
+  v_end     TIMESTAMPTZ;
+  v_result  JSONB;
+BEGIN
+  -- Default to last 30 days if no range is provided
+  v_end := COALESCE(p_end_date, NOW());
+  v_start := COALESCE(p_start_date, v_end - INTERVAL '30 days');
+
+  WITH day_buckets AS (
+    SELECT
+      date_trunc('day', created_at) AS day,
+      COUNT(DISTINCT ip_address)     AS active_users
+    FROM analytics_tracking
+    WHERE created_at >= v_start
+      AND created_at < v_end
+    GROUP BY date_trunc('day', created_at)
+    ORDER BY day
+  )
+  SELECT jsonb_build_object(
+    'start_date', v_start,
+    'end_date', v_end,
+    'total_active_users', (
+      SELECT COUNT(DISTINCT ip_address)
+      FROM analytics_tracking
+      WHERE created_at >= v_start
+        AND created_at < v_end
+    ),
+    'daily', COALESCE(
+      (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'date', day,
+            'active_users', active_users
+          ) ORDER BY day
+        )
+        FROM day_buckets
+      ),
+      '[]'::jsonb
+    )
+  ) INTO v_result;
+
+  RETURN COALESCE(v_result, '{}'::jsonb);
+END;
+$$ LANGUAGE plpgsql;
+
 -- Function to get top items
 CREATE OR REPLACE FUNCTION get_top_items_by_event(
   p_module_name TEXT,

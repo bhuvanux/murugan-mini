@@ -3,7 +3,7 @@
  * Step-by-step guide for installing unified analytics system
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -11,10 +11,11 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Separator } from '../ui/separator';
 import { 
   CheckCircle2, XCircle, AlertCircle, Loader2, 
-  Copy, ExternalLink, Database, Play, RefreshCw,
+  Copy, ExternalLink, Database, Play,
   FileCode, Terminal, CheckCheck
 } from 'lucide-react';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { publicAnonKey } from '../../utils/supabase/info';
+import { fetchAdminResponseWith404Fallback } from '../../utils/adminAPI';
 
 interface VerificationStep {
   id: string;
@@ -62,8 +63,6 @@ export default function AnalyticsInstallationGuide() {
       status: 'pending'
     }
   ]);
-
-  const baseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;
 
   const migrationPath = '/MIGRATION_READY_TO_COPY.sql';
 
@@ -161,11 +160,9 @@ export default function AnalyticsInstallationGuide() {
       details: undefined
     })));
 
-    const steps = [...verificationSteps];
-
     // Step 1: Check Tables
     await verifyStep(0, async () => {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/status`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/status`, {
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });
       const data = await res.json();
@@ -186,7 +183,7 @@ export default function AnalyticsInstallationGuide() {
 
     // Step 2: Check Functions
     await verifyStep(1, async () => {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/dashboard`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/dashboard`, {
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });
       const data = await res.json();
@@ -200,7 +197,7 @@ export default function AnalyticsInstallationGuide() {
 
     // Step 3: Check Configuration
     await verifyStep(2, async () => {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/config`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/config`, {
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });
       const data = await res.json();
@@ -217,8 +214,8 @@ export default function AnalyticsInstallationGuide() {
       const testItemId = '00000000-0000-0000-0000-000000000001';
       
       // Test stats endpoint
-      const res = await fetch(
-        `${baseUrl}/api/analytics/stats/wallpaper/${testItemId}`,
+      const res = await fetchAdminResponseWith404Fallback(
+        `/api/analytics/stats/wallpaper/${testItemId}`,
         {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         }
@@ -237,7 +234,7 @@ export default function AnalyticsInstallationGuide() {
       const testItemId = '00000000-0000-0000-0000-000000000999';
       
       // Track a test event
-      const trackRes = await fetch(`${baseUrl}/api/analytics/track`, {
+      const trackRes = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -258,8 +255,8 @@ export default function AnalyticsInstallationGuide() {
       }
 
       // Verify it was tracked
-      const checkRes = await fetch(
-        `${baseUrl}/api/analytics/check/wallpaper/${testItemId}/view`,
+      const checkRes = await fetchAdminResponseWith404Fallback(
+        `/api/analytics/check/wallpaper/${testItemId}/view`,
         {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         }
@@ -437,7 +434,7 @@ DROP TABLE IF EXISTS analytics_config CASCADE;
         </h3>
 
         <div className="space-y-3 mb-4">
-          {verificationSteps.map((step, index) => (
+          {verificationSteps.map((step) => (
             <div key={step.id} className="flex items-center gap-4 p-3 rounded-lg border">
               {step.status === 'pending' && (
                 <div className="h-5 w-5 rounded-full border-2 border-gray-300" />

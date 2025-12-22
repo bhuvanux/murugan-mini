@@ -1,0 +1,7 @@
+{
+  "unstable": ["decorators"],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "experimentalDecorators": true
+  }
+}

@@ -22,6 +22,9 @@ interface Sparkle {
   medium_url?: string;
   large_url?: string;
   thumbnail_url?: string;
+  cover_image_url?: string;
+  video_url?: string;
+  video_id?: string;
   publish_status: string;
   visibility: string;
   view_count: number;
@@ -31,6 +34,7 @@ interface Sparkle {
   tags?: string[];
   folder_id?: string;
   scheduled_at?: string;
+  metadata?: any;
 }
 
 interface SparkleFolder {
@@ -45,6 +49,7 @@ type ViewMode = "card" | "list";
 
 export function AdminSparkleManager() {
   const [sparkles, setSparkles] = useState<Sparkle[]>([]);
+  const [sparkleStats, setSparkleStats] = useState<Record<string, { views: number; likes: number }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"published" | "scheduled" | "draft">("published");
@@ -82,6 +87,138 @@ export function AdminSparkleManager() {
   // Reschedule modal state
   const [rescheduleSparkle, setRescheduleSparkle] = useState<Sparkle | null>(null);
 
+  const formatBytes = (bytes?: number | null) => {
+    if (!bytes || bytes <= 0) return "—";
+    const units = ["B", "KB", "MB", "GB"];
+    const idx = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+    const value = bytes / Math.pow(1024, idx);
+    return `${value.toFixed(value >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+  };
+
+  const getCompressionInfo = (sparkle: Sparkle) => {
+    const md = sparkle.metadata || {};
+    const originalBytes = typeof md.original_bytes === "number" ? md.original_bytes : undefined;
+    const compressedBytes = typeof md.compressed_bytes === "number" ? md.compressed_bytes : undefined;
+    const applied = md.compression_applied === true;
+    const method = typeof md.compression_method === "string" ? md.compression_method : undefined;
+
+    if (!originalBytes && !compressedBytes) return null;
+
+    return {
+      originalBytes,
+      compressedBytes,
+      applied,
+      method,
+    };
+  };
+
+  const resolveSparkleImage = (sparkle: Sparkle) =>
+    sparkle.cover_image_url ||
+    sparkle.thumbnail_url ||
+    sparkle.image_url ||
+    sparkle.medium_url ||
+    sparkle.small_url ||
+    "";
+
+  const renderSparklePreview = (sparkle: Sparkle, variant: "card" | "list" = "card") => {
+    const baseImage = resolveSparkleImage(sparkle);
+    const sharedVideoProps = {
+      src: sparkle.video_url ? `${sparkle.video_url}#t=0.1` : undefined,
+      muted: true,
+      playsInline: true,
+      loop: true,
+      autoPlay: true,
+      preload: "metadata" as const,
+      poster: baseImage || undefined,
+    };
+
+    if (baseImage) {
+      return (
+        <img
+          src={baseImage}
+          alt={sparkle.title}
+          className={
+            variant === "card"
+              ? "w-full h-full object-cover"
+              : "w-10 h-16 object-cover rounded"
+          }
+        />
+      );
+    }
+
+    if (sparkle.video_url) {
+      return (
+        <video
+          {...sharedVideoProps}
+          className={
+            variant === "card"
+              ? "w-full h-full object-cover"
+              : "w-10 h-16 object-cover rounded"
+          }
+        />
+      );
+    }
+
+    const fallbackClasses =
+      variant === "card"
+        ? "w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-green-100 to-green-200"
+        : "w-10 h-16 flex flex-col items-center justify-center gap-1 rounded bg-gradient-to-br from-green-100 to-green-200";
+
+    return (
+      <div className={fallbackClasses}>
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
+          <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p className="text-xs font-medium text-green-700">Video Content</p>
+      </div>
+    );
+  };
+
+  // Load per-sparkle analytics stats for list view (views/likes)
+  const loadSparkleStats = async (items: Sparkle[]) => {
+    try {
+      const statsEntries = await Promise.all(
+        items.map(async (s) => {
+          try {
+            const response = await fetch(
+              `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/analytics/stats/sparkle/${s.id}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${publicAnonKey}`,
+                },
+              }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+              return [s.id, { views: 0, likes: 0 }] as const;
+            }
+
+            const stats = (result.stats || {}) as Record<string, number>;
+            const views = (stats.view ?? stats.read ?? 0) as number;
+            const likes = (stats.like ?? 0) as number;
+
+            return [s.id, { views, likes }] as const;
+          } catch {
+            return [s.id, { views: 0, likes: 0 }] as const;
+          }
+        })
+      );
+
+      const next: Record<string, { views: number; likes: number }> = {};
+      for (const [id, val] of statsEntries) {
+        next[id] = val;
+      }
+      setSparkleStats(next);
+    } catch {
+      setSparkleStats({});
+    }
+  };
+
   // Load sparkles from backend
   const loadSparkles = async () => {
     try {
@@ -91,8 +228,16 @@ export function AdminSparkleManager() {
       const result = await adminAPI.getSparkles();
       
       console.log("[AdminSparkleManager] Loaded sparkles:", result);
+      console.log("[AdminSparkleManager] Total sparkles:", (result.data || []).length);
+      console.log("[AdminSparkleManager] By status:", {
+        published: (result.data || []).filter((s: any) => s.publish_status === "published").length,
+        draft: (result.data || []).filter((s: any) => s.publish_status === "draft").length,
+        scheduled: (result.data || []).filter((s: any) => s.publish_status === "scheduled").length,
+      });
       
-      setSparkles(result.data || []);
+      const items: Sparkle[] = result.data || [];
+      setSparkles(items);
+      void loadSparkleStats(items);
       
       if ((result.data || []).length === 0 && !selectedFolder) {
         toast.info("No sparkles found. Upload your first sparkle!");
@@ -513,7 +658,7 @@ export function AdminSparkleManager() {
       {showDatabaseSetup && <DatabaseSetupGuide />}
       
       {/* Folders Setup Guide */}
-      {showFoldersSetup && <FoldersSetupGuide contentType="sparkle" />}
+      {showFoldersSetup && <FoldersSetupGuide />}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -779,13 +924,20 @@ export function AdminSparkleManager() {
                     selectedSparkles.has(sparkle.id) ? "border-green-500 ring-2 ring-green-200" : "border-gray-200"
                   }`}
                 >
-                  {/* Image */}
+                  {/* Image or Video Thumbnail */}
                   <div className="relative aspect-[9/16] bg-gray-100">
-                    <img
-                      src={sparkle.thumbnail_url || sparkle.medium_url || sparkle.image_url}
-                      alt={sparkle.title}
-                      className="w-full h-full object-cover"
-                    />
+                    {renderSparklePreview(sparkle, "card")}
+                    {/* Video Badge */}
+                    {sparkle.video_url && (
+                      <div className="absolute bottom-3 right-3">
+                        <div className="bg-black/70 backdrop-blur-sm px-2 py-1 rounded-md flex items-center gap-1">
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                          <span className="text-xs text-white font-medium">Video</span>
+                        </div>
+                      </div>
+                    )}
                     {/* Selection Checkbox */}
                     <div className="absolute top-3 left-3">
                       <button
@@ -822,6 +974,18 @@ export function AdminSparkleManager() {
                     <h3 className="font-semibold text-gray-800 mb-2 line-clamp-2 text-inter-semibold-18">
                       {sparkle.title}
                     </h3>
+
+                    {(() => {
+                      const info = getCompressionInfo(sparkle);
+                      if (!info) return null;
+                      return (
+                        <div className="text-xs text-gray-500 mb-2">
+                          {`Size: ${formatBytes(info.originalBytes)} → ${formatBytes(info.compressedBytes)}`}
+                          {info.applied ? " (compressed)" : ""}
+                          {info.method ? ` • ${info.method}` : ""}
+                        </div>
+                      );
+                    })()}
                     {sparkle.description && (
                       <p className="text-gray-600 text-sm mb-3 line-clamp-2 text-inter-regular-14">
                         {sparkle.description}
@@ -833,13 +997,13 @@ export function AdminSparkleManager() {
                       <div>
                         <p className="text-xs text-gray-500 text-inter-regular-14">Views</p>
                         <p className="font-semibold text-gray-800 text-inter-medium-16">
-                          {sparkle.view_count || 0}
+                          {sparkleStats[sparkle.id]?.views ?? sparkle.view_count ?? 0}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 text-inter-regular-14">Likes</p>
                         <p className="font-semibold text-gray-800 text-inter-medium-16">
-                          {sparkle.like_count || 0}
+                          {sparkleStats[sparkle.id]?.likes ?? sparkle.like_count ?? 0}
                         </p>
                       </div>
                       <button
@@ -954,13 +1118,21 @@ export function AdminSparkleManager() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <img
-                            src={sparkle.thumbnail_url || sparkle.medium_url || sparkle.image_url}
-                            alt={sparkle.title}
-                            className="w-10 h-16 object-cover rounded"
-                          />
+                          {renderSparklePreview(sparkle, "list")}
                           <div>
                             <div className="font-medium text-gray-900 text-inter-medium-16">{sparkle.title}</div>
+
+                            {(() => {
+                              const info = getCompressionInfo(sparkle);
+                              if (!info) return null;
+                              return (
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  {`Size: ${formatBytes(info.originalBytes)} → ${formatBytes(info.compressedBytes)}`}
+                                  {info.applied ? " (compressed)" : ""}
+                                  {info.method ? ` • ${info.method}` : ""}
+                                </div>
+                              );
+                            })()}
                             {sparkle.description && (
                               <div className="text-sm text-gray-500 line-clamp-1 text-inter-regular-14">
                                 {sparkle.description}
@@ -971,7 +1143,7 @@ export function AdminSparkleManager() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {sparkle.publish_status === "scheduled" && sparkle.scheduled_at ? (
-                          <CountdownTimerBadge scheduledAt={sparkle.scheduled_at} compact />
+                          <CountdownTimerBadge scheduledAt={sparkle.scheduled_at} />
                         ) : (
                           <span
                             className={`px-3 py-1.5 rounded-full text-xs font-medium inline-block ${
@@ -987,10 +1159,10 @@ export function AdminSparkleManager() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-inter-regular-14">
-                        {sparkle.view_count || 0}
+                        {sparkleStats[sparkle.id]?.views ?? sparkle.view_count ?? 0}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-inter-regular-14">
-                        {sparkle.like_count || 0}
+                        {sparkleStats[sparkle.id]?.likes ?? sparkle.like_count ?? 0}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-inter-regular-14">
                         {new Date(sparkle.created_at).toLocaleDateString()}
@@ -1056,12 +1228,12 @@ export function AdminSparkleManager() {
         <RescheduleDialog
           isOpen={!!rescheduleSparkle}
           onClose={() => setRescheduleSparkle(null)}
-          onReschedule={(newDate) => {
-            handleReschedule(rescheduleSparkle.id, newDate);
+          onReschedule={async (newDate) => {
+            await handleReschedule(rescheduleSparkle.id, newDate);
             setRescheduleSparkle(null);
           }}
-          currentDate={rescheduleSparkle.scheduled_at ? new Date(rescheduleSparkle.scheduled_at) : new Date()}
-          title={rescheduleSparkle.title}
+          currentScheduledAt={rescheduleSparkle.scheduled_at || null}
+          wallpaperTitle={rescheduleSparkle.title}
         />
       )}
 

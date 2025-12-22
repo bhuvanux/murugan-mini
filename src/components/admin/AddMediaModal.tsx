@@ -1,17 +1,15 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   X,
   Music,
   Video,
   Youtube,
   Upload,
-  Loader2,
-  Calendar,
-  Tag,
   Plus,
 } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
+import { MuruganLoader } from "../MuruganLoader";
 
 type MediaType = "song" | "video";
 type UploadMode = "youtube" | "file";
@@ -127,17 +125,14 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
       toast.error("Please enter a title");
       return;
     }
-
     if (!selectedCategory) {
       toast.error("Please select a category");
       return;
     }
-
     if (uploadMode === "youtube" && !youtubeLink.trim()) {
       toast.error("Please enter a YouTube URL");
       return;
     }
-
     if (uploadMode === "file") {
       if (activeTab === "song" && !audioFile) {
         toast.error("Please upload an audio file");
@@ -148,86 +143,62 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
         return;
       }
     }
-
     setIsUploading(true);
-
     try {
-      console.log("[AddMedia] Starting upload...", {
-        title,
-        activeTab,
-        uploadMode,
-        category: selectedCategory,
-      });
+      const publishStatus = isDraft ? "draft" : schedulePost ? "scheduled" : "published";
+      const scheduledAt =
+        schedulePost && scheduleDate && scheduleTime
+          ? `${scheduleDate}T${scheduleTime}`
+          : "";
 
+      const contentType = activeTab === "song" ? "audio" : "video";
+
+      // STEP 2: Always use FormData for upload
       const formData = new FormData();
       formData.append("title", title);
-      
-      // ✅ FIX: For YouTube uploads, send mediaType="youtube"
-      // For file uploads, send "audio" or "video"
-      if (uploadMode === "youtube") {
-        formData.append("mediaType", "youtube");
-        
-        // Also include the actual type (audio/video) for categorization
-        const contentType = activeTab === "song" ? "audio" : "video";
-        formData.append("contentType", contentType);
-        
-        // ✅ FIX: Remove any "blob:" prefix
-        const cleanUrl = youtubeLink.replace(/^blob:/, '').trim();
-        formData.append("youtubeUrl", cleanUrl);
-        if (fetchedData?.thumbnail_url) {
-          formData.append("thumbnailUrl", fetchedData.thumbnail_url);
-        }
-      } else {
-        // File upload mode
-        const backendMediaType = activeTab === "song" ? "audio" : "video";
-        formData.append("mediaType", backendMediaType);
-        
-        if (activeTab === "song" && audioFile) {
-          formData.append("file", audioFile);
-        }
-        if (activeTab === "video" && videoFile) {
-          formData.append("file", videoFile);
-        }
-        if (thumbnailFile) {
-          formData.append("thumbnail", thumbnailFile);
-        }
-      }
-
       formData.append("category", selectedCategory);
 
-      // Draft/Schedule logic
-      if (isDraft) {
-        formData.append("publishStatus", "draft");
-      } else if (schedulePost && scheduleDate && scheduleTime) {
-        formData.append("publishStatus", "scheduled");
-        formData.append("scheduledAt", `${scheduleDate}T${scheduleTime}`);
-      } else {
-        formData.append("publishStatus", "published");
+      // Backend expects: publishStatus + optional scheduled_at
+      formData.append("publishStatus", publishStatus);
+      if (publishStatus === "scheduled" && scheduledAt) {
+        formData.append("scheduled_at", scheduledAt);
       }
 
-      console.log("[AddMedia] Calling upload API...");
-
+      if (uploadMode === "youtube") {
+        // Backend expects: mediaType=youtube and contentType=audio|video
+        formData.append("mediaType", "youtube");
+        formData.append("contentType", contentType);
+        formData.append("youtubeUrl", youtubeLink.trim());
+        if (fetchedData?.thumbnail_url) formData.append("thumbnailUrl", fetchedData.thumbnail_url);
+      } else {
+        // Backend expects: mediaType=audio|video and file=<File>
+        formData.append("mediaType", contentType);
+        const file = activeTab === "song" ? audioFile : videoFile;
+        if (file) {
+          formData.append("file", file);
+        }
+        // Optional thumbnail file upload is not supported by backend yet; omit for now.
+      }
+      // Remove all outdated fields (type, uploadMode, etc.)
+      // STEP 3: Send FormData to backend
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/upload/media`,
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${publicAnonKey}`,
+            // Do NOT set Content-Type for FormData
           },
           body: formData,
         }
       );
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error("[AddMedia] Upload failed:", errorData);
         throw new Error(errorData.error || "Upload failed");
       }
-
       const result = await response.json();
-
       if (result.success) {
-        console.log("[AddMedia] Upload successful:", result.data);
         toast.success(
           isDraft
             ? "Media saved as draft!"
@@ -235,7 +206,7 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
             ? "Media scheduled successfully!"
             : "Media uploaded successfully!"
         );
-        onSuccess(); // Refresh the media list
+        onSuccess();
         handleClose();
       } else {
         throw new Error(result.error || "Upload failed");
@@ -361,7 +332,7 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
                     className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                   >
                     {isFetching ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <MuruganLoader variant="button" />
                     ) : (
                       "Fetch"
                     )}
@@ -590,7 +561,7 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
           >
             {isUploading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <MuruganLoader variant="button" />
                 Uploading...
               </>
             ) : (

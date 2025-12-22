@@ -70,6 +70,37 @@ export interface SparkleArticle {
   url: string;
   image: string;
   tags: string[];
+  // Optional video fields for sparkle videos
+  videoUrl?: string | null;
+  videoId?: string | null;
+}
+
+export interface SyncedAudio {
+  id: string;
+  title: string;
+  filename: string;
+  url: string;
+  duration_seconds: number | null;
+  created_at: string;
+  uploaded_by?: string | null;
+}
+
+export interface LyricsBlock {
+  id: string;
+  audio_id: string;
+  index: number;
+  start: number;
+  end: number;
+  text: string;
+  created_at: string;
+  edited_by?: string | null;
+}
+
+export interface TrackAnalyticsEventParams {
+  module_name: string;
+  item_id: string;
+  event_type: string;
+  metadata?: Record<string, any>;
 }
 
 // ========================================
@@ -94,6 +125,126 @@ class UserAPI {
     return null;
   }
 
+  // ========================================
+  // SYNCED LYRICS AUDIO
+  // ========================================
+
+  async importAudioFromUrl(params: {
+    url: string;
+    title: string;
+    uploaded_by?: string;
+  }): Promise<{ success: boolean; data: SyncedAudio }> {
+    return await this.request(
+      `/api/audio/import`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params),
+      },
+      0,
+      false,
+    );
+  }
+
+  async uploadAudio(formData: FormData): Promise<{ success: boolean; data: SyncedAudio }> {
+    return await this.request(
+      `/api/audio/upload`,
+      {
+        method: "POST",
+        body: formData,
+      },
+      0,
+      false,
+    );
+  }
+
+  async getAudio(id: string): Promise<{ success: boolean; data: SyncedAudio }> {
+    return await this.request(`/api/audio/${id}`, {}, 0, false);
+  }
+
+  async getAudioStatus(id: string): Promise<{ success: boolean; status: any }> {
+    return await this.request(`/api/audio/${id}/status`, {}, 0, false);
+  }
+
+  async getLyrics(audioId: string): Promise<{ success: boolean; data: LyricsBlock[] }> {
+    return await this.request(`/api/audio/${audioId}/lyrics`, {}, 0, false);
+  }
+
+  async ingestLyricsFromText(
+    audioId: string,
+    params: { text: string; edited_by?: string },
+  ): Promise<{ success: boolean; count: number }> {
+    return await this.request(
+      `/api/audio/${audioId}/lyrics/ingest`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params),
+      },
+      0,
+      false,
+    );
+  }
+
+  async saveLyricsBlocks(
+    audioId: string,
+    params: {
+      blocks: Array<{ index: number; start: number; end: number; text: string }>;
+      edited_by?: string;
+    },
+  ): Promise<{ success: boolean; count: number }> {
+    return await this.request(
+      `/api/audio/${audioId}/lyrics`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params),
+      },
+      0,
+      false,
+    );
+  }
+
+  async processAudio(audioId: string): Promise<{ success: boolean; audio_id: string; segments: number }> {
+    return await this.request(
+      `/api/audio/${audioId}/process`,
+      {
+        method: "POST",
+      },
+      0,
+      false,
+    );
+  }
+
+  // ========================================
+  // UNIFIED ANALYTICS
+  // ========================================
+
+  async trackAnalyticsEvent(params: TrackAnalyticsEventParams): Promise<any> {
+    return await this.request(
+      `/api/analytics/track`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params),
+      },
+      0,
+      false,
+    );
+  }
+
+  async getAnalyticsItemStats(module_name: string, item_id: string): Promise<any> {
+    return await this.request(`/api/analytics/stats/${module_name}/${item_id}`, {}, 0, false);
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
@@ -101,7 +252,7 @@ class UserAPI {
     useCache = true, // Enable caching by default for GET requests
   ): Promise<T> {
     const isGetRequest = !options.method || options.method === 'GET';
-    
+
     // Check cache for GET requests
     if (isGetRequest && useCache) {
       const cached = apiCache.get<T>(endpoint);
@@ -131,7 +282,7 @@ class UserAPI {
     if (token) {
       headers["X-User-Token"] = token;
     }
-    
+
     // IMPORTANT: For public endpoints, we use the admin anon key without user token
     // This allows unauthenticated browsing of public content
 
@@ -159,13 +310,13 @@ class UserAPI {
           const error = await response
             .json()
             .catch(() => ({ message: "Request failed" }));
-          
+
           // Check if it's an authentication error (unauthorized/invalid token)
-          const isAuthError = error.error === 'unauthorized' || 
-                             error.message?.includes('Invalid token') ||
-                             error.message?.includes('unauthorized') ||
-                             response.status === 401;
-          
+          const isAuthError = error.error === 'unauthorized' ||
+            error.message?.includes('Invalid token') ||
+            error.message?.includes('unauthorized') ||
+            response.status === 401;
+
           // For auth errors on public endpoints, throw a special error that can be caught
           if (isAuthError) {
             // Don't log here - will be logged once when handled by calling function
@@ -174,14 +325,14 @@ class UserAPI {
             authError.statusCode = response.status;
             throw authError;
           }
-          
+
           // Check if it's a resource limit error
-          const isResourceLimit = error.code === 'WORKER_LIMIT' || 
-                                 error.message?.includes('compute resources') ||
-                                 error.message?.includes('timeout') || 
-                                 error.message?.includes('connection pool') ||
-                                 error.error === 'server_error';
-          
+          const isResourceLimit = error.code === 'WORKER_LIMIT' ||
+            error.message?.includes('compute resources') ||
+            error.message?.includes('timeout') ||
+            error.message?.includes('connection pool') ||
+            error.error === 'server_error';
+
           // Retry on resource errors with longer delay
           if (isResourceLimit && retryCount < maxRetries) {
             const delay = 1500; // Fixed delay for single retry
@@ -197,14 +348,14 @@ class UserAPI {
         }
 
         const data = await response.json();
-        
+
         // Cache successful GET responses
         if (isGetRequest && useCache) {
           // Use longer TTL for media lists (10 minutes)
           const ttl = endpoint.includes('/media/list') ? 10 * 60 * 1000 : 5 * 60 * 1000;
           apiCache.set(endpoint, data, ttl);
         }
-        
+
         return data;
       } catch (error: any) {
         // Check if it's an abort/timeout error
@@ -306,7 +457,7 @@ class UserAPI {
     };
 
     console.log(`[UserAPI] MOBILE MODE - POST /wallpapers/list`, body);
-    
+
     try {
       // 🔥 COLD START FIX: Warm up edge function with health check first
       console.log('[UserAPI] 🔥 Warming up edge function with health check...');
@@ -374,7 +525,7 @@ class UserAPI {
     } catch (error: any) {
       // REMOVED DEMO DATA FALLBACK - Show real error to admin
       console.error('[UserAPI] ❌ Failed to fetch wallpapers from admin backend:', error);
-      
+
       // Log detailed error for debugging
       console.error('[UserAPI] Error details:', {
         message: error.message,
@@ -382,7 +533,7 @@ class UserAPI {
         isAuthError: error.isAuthError,
         statusCode: error.statusCode
       });
-      
+
       // Return empty data with error indication
       // This will show "No content found" in user app
       return {
@@ -412,13 +563,13 @@ class UserAPI {
     // ✅ FIX: Use the ADMIN API endpoint with correct parameters
     // Admin backend: GET /api/media?mediaType=audio OR mediaType=video
     // We need to fetch BOTH audio and video, then filter in frontend
-    
+
     try {
       console.log('[UserAPI] Fetching media from admin backend...');
-      
+
       // Fetch ALL media (both audio and video)
       const result = await this.request<any>(`/api/media`, {}, 0, false); // Disable cache for fresh data
-      
+
       console.log('[UserAPI] Admin backend raw response:', {
         success: result.success,
         dataLength: result.data?.length || 0,
@@ -474,13 +625,15 @@ class UserAPI {
   ): Promise<{ data: SparkleArticle[]; pagination: any }> {
     // ✅ FIX: Use the ADMIN API endpoint with correct parameters
     // Admin backend: GET /api/sparkle?publishStatus=published
-    
+
     try {
       console.log('[UserAPI] Fetching sparkles from admin backend...');
-      
+
       // Fetch published sparkles only
-      const result = await this.request<any>(`/api/sparkle?publishStatus=published`, {}, 0, false); // Disable cache for fresh data
-      
+      // Backend now supports both /api/sparkle and /api/sparkles
+      const result = await this.request<any>(`/api/sparkles?publishStatus=published`, {}, 0, false); // Disable cache for fresh data
+
+
       console.log('[UserAPI] Admin backend raw response:', {
         success: result.success,
         dataLength: result.data?.length || 0,
@@ -530,7 +683,7 @@ class UserAPI {
   // Get or generate anonymous user ID
   private getAnonymousUserId(): string {
     if (typeof window === 'undefined') return 'server';
-    
+
     let userId = localStorage.getItem('murugan_anonymous_user_id');
     if (!userId) {
       // Generate unique anonymous ID
@@ -547,7 +700,7 @@ class UserAPI {
         method: "POST",
         body: JSON.stringify({ user_id }),
       }, 0, false); // Don't cache POST requests
-      
+
       // Return standardized response
       return {
         success: true,
@@ -555,11 +708,11 @@ class UserAPI {
         like_count: result.result?.like_count || 0,
         ...result
       };
-    } catch (error) {
+    } catch (error: any) {
       // Gracefully handle auth errors for likes
       console.warn(`[UserAPI] Like failed (may need auth):`, error);
       // Return success locally even if backend fails
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || String(error) };
     }
   }
 
@@ -571,16 +724,16 @@ class UserAPI {
         method: "POST",
         body: JSON.stringify({ user_id }),
       }, 0, false); // Don't cache POST requests
-      
+
       return {
         success: true,
         action: result.result?.action || 'unliked',
         like_count: result.result?.like_count || 0,
         ...result
       };
-    } catch (error) {
+    } catch (error: any) {
       console.warn(`[UserAPI] Unlike failed:`, error);
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || String(error) };
     }
   }
 
@@ -592,14 +745,14 @@ class UserAPI {
         method: "POST",
         body: JSON.stringify({ user_id }),
       }, 0, false); // Don't cache POST requests
-      
+
       // Clear the check-like cache for this media
       apiCache.delete(`/media/${mediaId}/check-like?user_id=${user_id}`);
-      
+
       // ✅ NEW: Clear wallpapers list cache to force refetch with updated counts
       // This ensures when user closes and reopens, they see the updated count
       apiCache.clearByPattern('/wallpapers/list');
-      
+
       return {
         success: true,
         action: result.result?.action || 'liked',
@@ -681,43 +834,43 @@ class UserAPI {
       publish_status: adminMedia.publish_status,
       visibility: adminMedia.visibility,
     });
-    
+
     if (!adminMedia.url && !adminMedia.storagePath && !adminMedia.storage_path && !adminMedia.imageUrl && !adminMedia.image_url && !adminMedia.originalUrl && !adminMedia.original_url && !adminMedia.video_url) {
       console.error('[UserAPI] ❌ Media missing ALL possible URL fields:', adminMedia);
     }
-    
+
     // Try ALL possible field name variations from different backends
     // For videos, prioritize video_url
     const imageUrl = adminMedia.video_url || // Video URL takes priority for videos
-                    adminMedia.url || 
-                    adminMedia.imageUrl ||
-                    adminMedia.image_url ||
-                    adminMedia.originalUrl ||
-                    adminMedia.original_url ||
-                    adminMedia.storagePath || 
-                    adminMedia.storage_path ||
-                    adminMedia.largeUrl ||
-                    adminMedia.large_url ||
-                    "";
-                    
-    const thumbUrl = adminMedia.thumbnail || 
-                    adminMedia.thumbnailUrl ||
-                    adminMedia.thumbnail_url ||
-                    adminMedia.smallUrl ||
-                    adminMedia.small_url ||
-                    adminMedia.mediumUrl ||
-                    adminMedia.medium_url ||
-                    imageUrl || // Fallback to main image
-                    "";
-    
-    const result = {
+      adminMedia.url ||
+      adminMedia.imageUrl ||
+      adminMedia.image_url ||
+      adminMedia.originalUrl ||
+      adminMedia.original_url ||
+      adminMedia.storagePath ||
+      adminMedia.storage_path ||
+      adminMedia.largeUrl ||
+      adminMedia.large_url ||
+      "";
+
+    const thumbUrl = adminMedia.thumbnail ||
+      adminMedia.thumbnailUrl ||
+      adminMedia.thumbnail_url ||
+      adminMedia.smallUrl ||
+      adminMedia.small_url ||
+      adminMedia.mediumUrl ||
+      adminMedia.medium_url ||
+      imageUrl || // Fallback to main image
+      "";
+
+    const result: MediaItem = {
       id: adminMedia.id,
       type:
         adminMedia.is_video || adminMedia.type === "video"
           ? "video"
           : adminMedia.type === "photo"
-          ? "image"
-          : "image",
+            ? "image"
+            : "image",
       is_video: adminMedia.is_video || false, // ✅ Add is_video field
       video_url: adminMedia.video_url || null, // ✅ Add video_url field
       title: adminMedia.title || "Untitled",
@@ -735,7 +888,7 @@ class UserAPI {
       downloads: adminMedia.stats?.downloads || adminMedia.download_count || adminMedia.downloads || 0,
       shares: adminMedia.stats?.shares || adminMedia.share_count || adminMedia.shares || 0,
     };
-    
+
     console.log('[UserAPI] ✅ Transformed result:', {
       id: result.id,
       title: result.title,
@@ -745,7 +898,7 @@ class UserAPI {
       video_url: result.video_url,
       thumbnail_url: result.thumbnail_url,
     });
-    
+
     return result;
   };
 
@@ -764,19 +917,19 @@ class UserAPI {
     });
 
     // Determine category: if media_type is audio → "songs", if video → "videos"
-    const category = adminMedia.media_type === 'audio' ? 'songs' : 
-                     adminMedia.media_type === 'video' ? 'videos' : 
-                     'uncategorized';
+    const category = adminMedia.media_type === 'audio' ? 'songs' :
+      adminMedia.media_type === 'video' ? 'videos' :
+        'uncategorized';
 
     // Use youtube_url if available, otherwise use file_url
     const embedUrl = adminMedia.youtube_url || adminMedia.file_url || '';
-    
+
     // Extract YouTube ID from URL
     const youtubeId = this.extractYouTubeId(embedUrl);
-    
+
     // Use provided thumbnail or generate from YouTube ID
-    const thumbnail = adminMedia.thumbnail_url || 
-                     (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg` : '');
+    const thumbnail = adminMedia.thumbnail_url ||
+      (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg` : '');
 
     return {
       id: adminMedia.id,
@@ -808,41 +961,69 @@ class UserAPI {
       subtitle: adminSparkle.subtitle,
       cover_image_url: adminSparkle.cover_image_url,
       thumbnail_url: adminSparkle.thumbnail_url,
+      video_url: adminSparkle.video_url,
+      video_id: adminSparkle.video_id,
       publish_status: adminSparkle.publish_status
     });
 
-    return {
+    // Determine if this sparkle is a video-based item
+    const hasVideo = !!(adminSparkle.video_url || adminSparkle.videoId || adminSparkle.video_id);
+    
+    // For video-only sparkles without cover image, use a placeholder or the video URL itself
+    const imageUrl = adminSparkle.cover_image_url || 
+                     adminSparkle.thumbnail_url || 
+                     adminSparkle.thumbnail || 
+                     (hasVideo ? adminSparkle.video_url : "") || 
+                     "";
+
+    const resolvedTitle = typeof adminSparkle.title === "string" ? adminSparkle.title.trim() : "";
+    const resolvedSnippet = typeof adminSparkle.subtitle === "string" ? adminSparkle.subtitle.trim() : "";
+
+    const transformed: SparkleArticle = {
       id: adminSparkle.id,
-      type: "article",
-      title: adminSparkle.title || "Untitled",
-      snippet: adminSparkle.subtitle || adminSparkle.content?.substring(0, 200) || "",
-      content: adminSparkle.content || "",
-      source: "Murugan Wallpapers",
+      type: hasVideo ? "video" : "article",
+      title: resolvedTitle,
+      snippet: resolvedSnippet || adminSparkle.content?.substring(0, 200)?.trim() || "",
+      content: typeof adminSparkle.content === "string" ? adminSparkle.content : "",
+      source: adminSparkle.source || "Murugan Wallpapers",
       publishedAt: adminSparkle.published_at || adminSparkle.created_at || new Date().toISOString(),
-      url: "#", // No external URL for sparkles
-      image: adminSparkle.cover_image_url || adminSparkle.thumbnail_url || "",
+      url: adminSparkle.external_link || "#", // External link if present
+      image: imageUrl,
       tags: Array.isArray(adminSparkle.tags) ? adminSparkle.tags : [],
+      videoUrl: adminSparkle.video_url || null,
+      videoId: adminSparkle.video_id || adminSparkle.videoId || null,
     };
+
+    console.log('[UserAPI] ✨ Transformed result:', {
+      id: transformed.id,
+      type: transformed.type,
+      hasVideo,
+      videoUrl: transformed.videoUrl,
+      image: transformed.image,
+      imageUrl
+    });
+
+    return transformed;
   };
 
   private extractYouTubeId = (url: string): string => {
     if (!url) return "";
-    
+
     // Extract YouTube ID from various URL formats
     const watchPattern = /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/;
     const shortPattern = /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/;
     const embedPattern = /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/;
     const directIdPattern = /^([a-zA-Z0-9_-]{11})$/;
-    
+
     const patterns = [watchPattern, shortPattern, embedPattern, directIdPattern];
-    
+
     for (const pattern of patterns) {
       const match = url.match(pattern);
       if (match && match[1]) {
         return match[1];
       }
     }
-    
+
     return "";
   };
 }

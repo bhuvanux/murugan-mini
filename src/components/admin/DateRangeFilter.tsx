@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Calendar as CalendarIcon, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { CompactDatePicker } from "./CompactDatePicker";
-import { format, subDays, subWeeks, subMonths, subYears, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, subWeeks, subMonths, startOfDay, endOfDay } from "date-fns";
 
 export type DateRangePreset = "today" | "week" | "month" | "year" | "custom";
 
@@ -16,6 +16,8 @@ export function DateRangeFilter({ onDateRangeChange }: DateRangeFilterProps) {
   const [customEndDate, setCustomEndDate] = useState<Date | undefined>();
   const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [open, setOpen] = useState(false);
+
+  const MAX_RANGE_DAYS = 90;
 
   const applyPreset = (preset: DateRangePreset) => {
     setSelectedPreset(preset);
@@ -35,7 +37,7 @@ export function DateRangeFilter({ onDateRangeChange }: DateRangeFilterProps) {
         setOpen(false);
         break;
       case "year":
-        onDateRangeChange(subYears(now, 1), now, preset);
+        onDateRangeChange(subDays(now, MAX_RANGE_DAYS), now, preset);
         setOpen(false);
         break;
       case "custom":
@@ -47,7 +49,9 @@ export function DateRangeFilter({ onDateRangeChange }: DateRangeFilterProps) {
 
   const applyCustomRange = () => {
     if (customStartDate && customEndDate) {
-      onDateRangeChange(customStartDate, customEndDate, "custom");
+      const diffDays = Math.ceil((customEndDate.getTime() - customStartDate.getTime()) / (1000 * 60 * 60 * 24));
+      const start = diffDays > MAX_RANGE_DAYS ? subDays(customEndDate, MAX_RANGE_DAYS) : customStartDate;
+      onDateRangeChange(start, customEndDate, "custom");
       setShowCustomPicker(false);
       setOpen(false);
     }
@@ -66,14 +70,14 @@ export function DateRangeFilter({ onDateRangeChange }: DateRangeFilterProps) {
       case "month":
         return "Last 30 Days";
       case "year":
-        return "Last Year";
+        return "Last 90 Days";
       default:
         return "Select Range";
     }
   };
 
   return (
-    <Popover open={open} onOpenChange={(isOpen) => {
+    <Popover open={open} onOpenChange={(isOpen: boolean) => {
       setOpen(isOpen);
       if (!isOpen) {
         setShowCustomPicker(false);
@@ -86,7 +90,7 @@ export function DateRangeFilter({ onDateRangeChange }: DateRangeFilterProps) {
           <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="end" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent className="w-auto p-0" align="end" onOpenAutoFocus={(e: Event) => e.preventDefault()}>
         <div className="p-2 space-y-1">
           <button
             onClick={() => applyPreset("today")}
@@ -126,7 +130,7 @@ export function DateRangeFilter({ onDateRangeChange }: DateRangeFilterProps) {
                 : "hover:bg-gray-100 text-gray-700"
             }`}
           >
-            Last Year
+            Last 90 Days
           </button>
           <div className="border-t pt-1 mt-1">
             <button

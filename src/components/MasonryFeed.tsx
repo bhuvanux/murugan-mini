@@ -1,14 +1,11 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { userAPI, MediaItem } from '../utils/api/client';
 import { MediaCard } from './MediaCard';
 import { EmptyState } from './EmptyState';
 import { WallpaperSkeleton } from './WallpaperSkeleton';
 import { MuruganLoader } from './MuruganLoader';
-import { ModuleBannerCarousel } from './ModuleBannerCarousel';
 import { SimpleHealthCheck } from './SimpleHealthCheck';
 import { TestBackendConnection } from './TestBackendConnection';
-import { toast } from 'sonner@2.0.3';
-import { useAuth } from '../contexts/AuthContext';
 import { ImageOff } from 'lucide-react';
 
 type MasonryFeedProps = {
@@ -17,7 +14,7 @@ type MasonryFeedProps = {
   onTablesNotFound?: () => void;
 };
 
-export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: MasonryFeedProps) {
+export function MasonryFeed({ searchQuery, onSelectMedia }: MasonryFeedProps) {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
@@ -25,7 +22,6 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [errorCount, setErrorCount] = useState(0);
   const [showErrorMessage, setShowErrorMessage] = useState(false);
-  const { user } = useAuth();
   const observerTarget = useRef<HTMLDivElement>(null);
 
   const pageSize = 20;
@@ -192,9 +188,6 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
 
   return (
     <div className="pb-[79px]">
-      {/* Banner Carousel - For wallpapers/photos module */}
-      <ModuleBannerCarousel bannerType="wallpaper" />
-      
       {/* Masonry Grid */}
       <div className="grid grid-cols-2 gap-1 p-[5px]">
         {media.map((item) => (

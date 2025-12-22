@@ -5,9 +5,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { projectId, publicAnonKey } from '../supabase/info';
-
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;
+import { publicAnonKey } from '../supabase/info';
+import { fetchAdminResponseWith404Fallback } from '../adminAPI';
 
 export type ModuleName = 
   | 'wallpaper' 
@@ -16,7 +15,10 @@ export type ModuleName =
   | 'sparkle' 
   | 'photo' 
   | 'ask_gugan' 
-  | 'banner';
+  | 'banner'
+  | 'popup_banner'
+  | 'temple'
+  | 'quote';
 
 export type EventType = 
   | 'view' 
@@ -73,7 +75,7 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
       }
 
       try {
-        const response = await fetch(`${API_BASE}/api/analytics/track`, {
+        const response = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -137,7 +139,7 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
       }
 
       try {
-        const response = await fetch(`${API_BASE}/api/analytics/untrack`, {
+        const response = await fetchAdminResponseWith404Fallback(`/api/analytics/untrack`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -192,13 +194,13 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
       if (!itemId) return false;
 
       try {
-        const response = await fetch(
-          `${API_BASE}/api/analytics/check/${moduleName}/${itemId}/${eventType}`,
+        const response = await fetchAdminResponseWith404Fallback(
+          `/api/analytics/check/${moduleName}/${itemId}/${eventType}`,
           {
             headers: {
               Authorization: `Bearer ${publicAnonKey}`,
             },
-          }
+          },
         );
 
         if (!response.ok) {
@@ -225,13 +227,13 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
     setError(null);
 
     try {
-      const response = await fetch(
-        `${API_BASE}/api/analytics/stats/${moduleName}/${itemId}`,
+      const response = await fetchAdminResponseWith404Fallback(
+        `/api/analytics/stats/${moduleName}/${itemId}`,
         {
           headers: {
             Authorization: `Bearer ${publicAnonKey}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -282,25 +284,37 @@ export const analyticsTracker = {
     metadata: any = {}
   ): Promise<TrackingResult> => {
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/track`, {
+      console.log(`[Analytics] Tracking ${eventType} for ${moduleName}:${itemId}`);
+      
+      const requestBody = {
+        module_name: moduleName,
+        item_id: itemId,
+        event_type: eventType,
+        metadata,
+      };
+      
+      console.log('[Analytics] Request body:', requestBody);
+      
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify({
-          module_name: moduleName,
-          item_id: itemId,
-          event_type: eventType,
-          metadata,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log(`[Analytics] Response status: ${response.status} ${response.statusText}`);
+
       if (!response.ok) {
-        throw new Error(`Tracking failed: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`[Analytics] Tracking failed with status ${response.status}:`, errorText);
+        throw new Error(`Tracking failed: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('[Analytics] Response data:', data);
+      
       return {
         success: data.success,
         tracked: data.tracked,
@@ -309,6 +323,14 @@ export const analyticsTracker = {
       };
     } catch (err: any) {
       console.error('[Analytics] Track error:', err);
+      console.error('[Analytics] Error details:', {
+        message: err.message,
+        stack: err.stack,
+        moduleName,
+        itemId,
+        eventType,
+        metadata
+      });
       return {
         success: false,
         tracked: false,
@@ -327,24 +349,36 @@ export const analyticsTracker = {
     eventType: EventType
   ): Promise<TrackingResult> => {
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/untrack`, {
+      console.log(`[Analytics] Untracking ${eventType} for ${moduleName}:${itemId}`);
+      
+      const requestBody = {
+        module_name: moduleName,
+        item_id: itemId,
+        event_type: eventType,
+      };
+      
+      console.log('[Analytics] Untrack request body:', requestBody);
+      
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/untrack`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify({
-          module_name: moduleName,
-          item_id: itemId,
-          event_type: eventType,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log(`[Analytics] Untrack response status: ${response.status} ${response.statusText}`);
+
       if (!response.ok) {
-        throw new Error(`Untracking failed: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`[Analytics] Untracking failed with status ${response.status}:`, errorText);
+        throw new Error(`Untracking failed: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('[Analytics] Untrack response data:', data);
+      
       return {
         success: data.success,
         tracked: false,
@@ -353,6 +387,13 @@ export const analyticsTracker = {
       };
     } catch (err: any) {
       console.error('[Analytics] Untrack error:', err);
+      console.error('[Analytics] Untrack error details:', {
+        message: err.message,
+        stack: err.stack,
+        moduleName,
+        itemId,
+        eventType
+      });
       return {
         success: false,
         tracked: false,
@@ -370,13 +411,13 @@ export const analyticsTracker = {
     itemId: string
   ): Promise<AnalyticsStats> => {
     try {
-      const response = await fetch(
-        `${API_BASE}/api/analytics/stats/${moduleName}/${itemId}`,
+      const response = await fetchAdminResponseWith404Fallback(
+        `/api/analytics/stats/${moduleName}/${itemId}`,
         {
           headers: {
             Authorization: `Bearer ${publicAnonKey}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {

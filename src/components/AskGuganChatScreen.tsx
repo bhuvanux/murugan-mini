@@ -1,4 +1,8 @@
-import image_c00bd5357c41e8aa74e527dfb05640be2d95e6bd from "figma:asset/c00bd5357c41e8aa74e527dfb05640be2d95e6bd.png";
+// src/components/AskGuganChatScreen.tsx
+// NOTE: I replaced the main image imports to load from ../custom-assets
+// (kid-murugan.png, kolam.png, murugan.gif, splash-logo.png).
+// A small inline SVG placeholder is provided for safety.
+
 import React, { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft,
@@ -15,11 +19,31 @@ import {
   Bell,
   ImageIcon as ImageIconGallery,
 } from "lucide-react";
-import imgSparkIcon from "figma:asset/1c07a5ebea0879d9c6f92eb876c88c63c6de2a3c.png";
-import muruganAvatar from "figma:asset/d5f2b8db8be54cd7632e2a54ce5388d6337b0c00.png";
-import muruganGif from "figma:asset/8a474a03bd190bd5b25bf9850b081cc928151c0b.png";
-import imgVelWatermark from "figma:asset/cc9aaf65ea9acc53e7f879a4868a2a93af6baafe.png";
-import exampleImage from "figma:asset/0e44e074df6a271408c19f907b1238d08495fa8d.png";
+
+/**
+ * Replace these imports with files from your `src/custom-assets` folder.
+ * Make sure the files exist:
+ *  - src/custom-assets/kid-murugan.png
+ *  - src/custom-assets/kolam.png
+ *  - src/custom-assets/murugan.gif
+ *  - src/custom-assets/splash-logo.png
+ *
+ * If you want different file names, update them here.
+ */
+// 🔥 Final Asset Mapping (Mapping A – Correct Paths)
+import kidMurugan from "../custom-assets/kid-murugan.png";
+import imgSparkIcon from "../custom-assets/kolam.png";
+import muruganAvatar from "../custom-assets/kid-murugan.png";
+import muruganGif from "../custom-assets/murugan.gif";
+import imgVelWatermark from "../custom-assets/kolam.png";
+import exampleImage from "../custom-assets/splash-logo.png";
+
+
+
+/* ---------- If you still have some hashed assets in src/assets you can import them as well.
+   For this file I've only switched the primary UI images to custom-assets. ---------- */
+
+// Keep your local project imports as-is:
 import {
   SongCard,
   TempleCard,
@@ -30,13 +54,11 @@ import {
 } from "./ask-gugan";
 import { MusicPlayer } from "./ask-gugan/MusicPlayerIntegration";
 import {
-  projectId,
-  publicAnonKey,
-} from "../utils/supabase/info";
-import {
   useTTS,
   useGeolocation,
   useCalendar,
+  useNotifications,
+  useGreetings,
   usePushNotifications,
   useSharing,
   useAnalytics,
@@ -46,7 +68,22 @@ import {
   openInGoogleMaps,
   getDirections,
 } from "./ask-gugan/AskGuganEnhancements";
+import { callMuruganAgent } from "../lib/api/muruganAgent";
+import { formatMuruganResponse } from "../lib/aiGuganFormatter";
+import { detectIntent } from "../lib/aiGuganIntent";
 
+/* ----------------- Simple inline placeholder (SVG) -----------------
+   This prevents runtime breakage if an image fails to load.
+   Browsers will still show broken image icon for missing imports at build-time,
+   but at runtime <img src={placeholder} /> works as fallback.
+*/
+const INLINE_PLACEHOLDER =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 24 24'><rect width='100%' height='100%' fill='#EEE'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='14' fill='#999'>image missing</text></svg>`,
+  );
+
+/* ----------------- Type definitions (unchanged) ----------------- */
 interface Message {
   id: string;
   text: string;
@@ -71,6 +108,7 @@ interface AskGuganChatScreenProps {
   userId?: string;
 }
 
+/* ----------------- Component ----------------- */
 export function AskGuganChatScreen({
   chatId,
   onBack,
@@ -79,15 +117,13 @@ export function AskGuganChatScreen({
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(
-    chatId === "new",
+  const [showWelcome, setShowWelcome] = useState(chatId === "new");
+  const [aiProvider, setAiProvider] = useState<"openai" | "gemini">(
+    "openai",
   );
-  const [aiProvider, setAiProvider] = useState<
-    "openai" | "gemini"
-  >("openai");
-  const [conversationId, setConversationId] = useState<
-    string | null
-  >(null);
+  const [conversationId, setConversationId] = useState<string | null>(
+    null,
+  );
   const [showSettings, setShowSettings] = useState(false);
   const [language, setLanguage] = useState<"en" | "ta">("en");
   const [isRecording, setIsRecording] = useState(false);
@@ -121,6 +157,19 @@ export function AskGuganChatScreen({
     "வேல் முருகா! நான் குகன். நீங்கள் என்ன கேட்க விரும்புகிறீர்கள்?",
     "திருச்செந்தூர் முருகனின் கருணையுடன்… எப்படி உதவலாம்?",
   ];
+
+  const getFallbackErrorMessage = (lang: "en" | "ta"): string => {
+    if (lang === "ta") {
+      return (
+        "சிறிய தொழில்நுட்ப பிரச்சனை உள்ளது. தயவு செய்து மீண்டும் முயற்சிக்கவும்.\n" +
+        "முருகனின் அருள் உங்களுடன் இருக்கட்டும்."
+      );
+    }
+    return (
+      "There seems to be a small technical issue. Please try again.\n" +
+      "May Lord Murugan guide you."
+    );
+  };
 
   useEffect(() => {
     // Initialize chat
@@ -159,49 +208,13 @@ export function AskGuganChatScreen({
   }, []);
 
   const loadChatHistory = async () => {
-    // Load real chat history from backend
+    // Backend chat history is temporarily disabled; preserve UI with empty state
     if (chatId === "new") {
       return;
     }
 
-    try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/ask-gugan/conversation/${chatId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-        },
-      );
-
-      if (!response.ok) {
-        console.error(
-          "[Load Chat History] Error loading chat:",
-          response.statusText,
-        );
-        return;
-      }
-
-      const data = await response.json();
-
-      if (data.success && data.messages) {
-        // Convert backend format to frontend format
-        const formattedMessages: Message[] = data.messages.map(
-          (msg: any) => ({
-            id: msg.id || Date.now().toString(),
-            text: msg.content || msg.text || "",
-            sender: msg.role === "user" ? "user" : "ai",
-            timestamp: msg.timestamp || getCurrentTime(),
-            actionCard: msg.actionCard,
-          }),
-        );
-
-        setMessages(formattedMessages);
-        setConversationId(chatId);
-      }
-    } catch (error) {
-      console.error("[Load Chat History] Error:", error);
-    }
+    setConversationId(chatId);
+    setMessages([]);
   };
 
   const scrollToBottom = () => {
@@ -379,17 +392,6 @@ export function AskGuganChatScreen({
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
-    if (!isOnline) {
-      alert(
-        "📵 You are offline. Please check your internet connection.",
-      );
-      return;
-    }
-
-    if (showWelcome) {
-      setShowWelcome(false);
-    }
-
     const userMessage: Message = {
       id: Date.now().toString(),
       text: inputText,
@@ -403,66 +405,37 @@ export function AskGuganChatScreen({
     setIsLoading(true);
 
     try {
-      const endpoint =
-        aiProvider === "openai" ? "openai" : "gemini";
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/ask-gugan/${endpoint}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify({
-            message: messageText,
-            conversation_id: conversationId,
-            user_id: userId || "anonymous",
-            language: "en",
-          }),
-        },
-      );
+      let aiText = "";
 
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({}));
-        console.error("[Ask Gugan] Full API Error Response:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-        });
-        throw new Error(
-          errorData.error ||
-            `API error: ${response.statusText}`,
-        );
+      if (!isOnline) {
+        aiText = getFallbackErrorMessage(language);
+      } else {
+        const { tool, args } = detectIntent(messageText);
+        const finalArgs: any = {
+          ...(args || {}),
+          userId: userId || "anonymous",
+          language,
+        };
+
+        try {
+          const res = await callMuruganAgent<any>(tool, finalArgs);
+          aiText = formatMuruganResponse(tool, res.data, language);
+        } catch (err: any) {
+          console.error("[GUGAN ERROR]", err);
+          aiText = getFallbackErrorMessage(language);
+        }
       }
 
-      const data = await response.json();
-
-      if (data.conversation_id) {
-        setConversationId(data.conversation_id);
+      if (showWelcome) {
+        setShowWelcome(false);
       }
 
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text:
-          data.message ||
-          (data.function_call
-            ? ""
-            : "I apologize, I couldn't process your request."),
+        text: aiText,
         sender: "ai",
         timestamp: getCurrentTime(),
       };
-
-      if (data.function_call && data.function_call.result) {
-        aiResponse.actionCard = {
-          type: data.function_call.result.type,
-          data: data.function_call.result,
-        };
-        if (!data.message) {
-          aiResponse.text = "";
-        }
-      }
 
       setMessages((prev) => [...prev, aiResponse]);
 
@@ -474,18 +447,12 @@ export function AskGuganChatScreen({
       }
 
       analytics.trackMessageSent(aiProvider, false);
-      if (data.function_call) {
-        analytics.trackFunctionCall(
-          data.function_call.name,
-          !!data.function_call.result,
-        );
-      }
     } catch (error: any) {
-      console.error("[Ask Gugan] Error:", error);
+      console.error("[Ask Gugan] Unexpected error in handleSend:", error);
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: `🙏 மன்னிக்கவும் (Sorry)! I encountered an error: ${error.message}. Please try again.`,
+        text: getFallbackErrorMessage(language),
         sender: "ai",
         timestamp: getCurrentTime(),
       };
@@ -509,77 +476,101 @@ export function AskGuganChatScreen({
     setIsLoading(true);
 
     try {
-      const endpoint =
-        aiProvider === "openai" ? "openai" : "gemini";
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/ask-gugan/${endpoint}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify({
-            message: prompt,
-            conversation_id: conversationId,
-            user_id: userId || "anonymous",
-            language: "en",
-          }),
-        },
-      );
+      let tool: string | null = null;
+      let args: any = {};
 
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({}));
-        console.error(
-          "[Ask Gugan Quick Action] Full API Error Response:",
-          {
-            status: response.status,
-            statusText: response.statusText,
-            error: errorData,
-          },
-        );
-        throw new Error(
-          errorData.error ||
-            `API error: ${response.statusText}`,
-        );
+      const lowerPrompt = prompt.toLowerCase();
+
+      if (lowerPrompt.includes("panchang")) {
+        tool = "get_today_panchangam";
+      } else if (lowerPrompt.includes("find murugan temples")) {
+        tool = "get_temple_info";
+        const detectedLocation =
+          geolocation.location?.city ||
+          geolocation.location?.state ||
+          geolocation.location?.country ||
+          "Tamil Nadu";
+        args = { location: detectedLocation };
+      } else if (lowerPrompt.includes("devotional songs")) {
+        tool = "get_murugan_songs";
+      } else if (
+        lowerPrompt.includes("kavacham") ||
+        lowerPrompt.includes("kanda sashti") ||
+        lowerPrompt.includes("kanda sashti kavacham")
+      ) {
+        tool = "get_kavacham";
+        args = { kavacham_name: "Kanda Sashti Kavacham" };
+      } else if (
+        lowerPrompt.includes("story about lord murugan") ||
+        lowerPrompt.includes("story")
+      ) {
+        tool = "get_random_story";
+      } else if (lowerPrompt.includes("remind me for evening prayers")) {
+        tool = "get_pariharam";
+        args = { problem_type: "general" };
+      } else if (lowerPrompt.includes("plan my pilgrimage")) {
+        tool = "get_temple_route_map";
+        const detectedLocation =
+          geolocation.location?.city ||
+          geolocation.location?.state ||
+          geolocation.location?.country ||
+          "current location";
+        args = {
+          origin: detectedLocation,
+          temple_id: "palani",
+        };
+      } else if (lowerPrompt.includes("devotional rituals")) {
+        tool = "get_spiritual_guidance";
+        args = { topic: "rituals" };
+      } else if (
+        lowerPrompt.includes("significance of vel") ||
+        lowerPrompt.includes("vel meaning")
+      ) {
+        tool = "get_random_fact";
       }
 
-      const data = await response.json();
+      let aiText: string;
 
-      if (data.conversation_id) {
-        setConversationId(data.conversation_id);
+      if (!isOnline) {
+        aiText = getFallbackErrorMessage(language);
+      } else if (tool) {
+        try {
+          const result = await callMuruganAgent<any>(tool, args);
+          aiText = formatMuruganResponse(tool, result.data, language);
+        } catch (apiError: any) {
+          console.error(
+            `[Ask Gugan Quick Action] murugan_agent error for ${tool}:`,
+            apiError,
+          );
+          aiText = getFallbackErrorMessage(language);
+        }
+      } else {
+        aiText = getFallbackErrorMessage(language);
       }
 
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text:
-          data.message ||
-          (data.function_call
-            ? ""
-            : "I apologize, I couldn't process your request."),
+        text: aiText,
         sender: "ai",
         timestamp: getCurrentTime(),
       };
 
-      if (data.function_call && data.function_call.result) {
-        aiResponse.actionCard = {
-          type: data.function_call.result.type,
-          data: data.function_call.result,
-        };
-        if (!data.message) {
-          aiResponse.text = "";
-        }
+      setMessages((prev) => [...prev, aiResponse]);
+
+      if (tts.config.autoPlay && aiResponse.text) {
+        setTimeout(
+          () => tts.speak(aiResponse.text, aiResponse.id),
+          500,
+        );
       }
 
-      setMessages((prev) => [...prev, aiResponse]);
+      analytics.trackMessageSent(aiProvider, false);
     } catch (error: any) {
-      console.error("[Ask Gugan Quick Action] Error:", error);
+      console.error("[Ask Gugan Quick Action] Unexpected error:", error);
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: `🙏 I apologize! I encountered an error. Please try again.`,
+        text: getFallbackErrorMessage(language),
         sender: "ai",
         timestamp: getCurrentTime(),
       };
@@ -587,18 +578,6 @@ export function AskGuganChatScreen({
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const generateAIResponse = (userText: string): string => {
-    const responses = [
-      "முருகன் கோவில்களில் காலை 6 மணி முதல் 12 மணி வரை சிறந்த நேரம். Morning prayers bring divine blessings! 🙏",
-      "கந்த சஷ்டி கவசம் படிப்பது மிகவும் சக்தி வாய்ந்தது. Recite it daily for protection and prosperity.",
-      "ஆறுபடை வீடுகள்: திருப்பரங்குன்றம், திருச்செந்தூர், பழனி, சுவாமிமலை, திருத்தணி, பழமுதிர்சோலை. Visit all six for complete blessings!",
-      "தைப்பூசம் அன்று கவடி எடுப்பது மிகவும் விசேஷம். Fast for 48 days before taking kavadi. வேல் முருகா! 🔱",
-    ];
-    return responses[
-      Math.floor(Math.random() * responses.length)
-    ];
   };
 
   const getDateSeparator = (index: number): string | null => {
@@ -628,10 +607,11 @@ export function AskGuganChatScreen({
                     );
                   }}
                   onShare={() => {
-                    sharing.shareContent(
-                      `Check out this devotional song: ${song.title}`,
-                      song.embedUrl,
-                    );
+                    sharing.share({
+                      title: `🎵 ${song.title}`,
+                      text: `Listen to this devotional song: ${song.title}`,
+                      url: song.embedUrl,
+                    });
                     console.log("Song shared:", song.id);
                   }}
                   onLike={() => {
@@ -713,6 +693,7 @@ export function AskGuganChatScreen({
     }
   };
 
+  /* ----------------- Render ----------------- */
   return (
     <div className="h-screen flex flex-col bg-[#ECE5DD]">
       {/* TOP BAR */}
@@ -729,9 +710,12 @@ export function AskGuganChatScreen({
 
         <div className="w-[40px] h-[40px] rounded-full bg-[#F9C300] flex items-center justify-center overflow-hidden">
           <img
-            src={muruganAvatar}
+            src={muruganAvatar || INLINE_PLACEHOLDER}
             alt="Gugan"
             className="w-full h-full object-cover"
+            onError={(e) =>
+              ((e.target as HTMLImageElement).src = INLINE_PLACEHOLDER)
+            }
           />
         </div>
 
@@ -745,10 +729,9 @@ export function AskGuganChatScreen({
             {language === "ta" ? "குகன்" : "Ask Gugan"}
           </div>
           <div className="text-[12px] text-[#B8D5C5]">
-            {language === "ta" 
-              ? "AI உதவியாளர்" 
-              : "AI-powered devotional assistant"
-            }
+            {language === "ta"
+              ? "AI உதவியாளர்"
+              : "AI-powered devotional assistant"}
           </div>
         </div>
 
@@ -790,13 +773,13 @@ export function AskGuganChatScreen({
       {/* Settings Dropdown - Minimal */}
       {showSettings && (
         <div className="absolute right-4 top-[72px] bg-white rounded-2xl shadow-2xl p-4 z-50 w-[240px] border border-gray-100">
-          <div className="text-xs text-gray-500 mb-2 uppercase tracking-wide">AI Provider</div>
+          <div className="text-xs text-gray-500 mb-2 uppercase tracking-wide">
+            AI Provider
+          </div>
           <select
             value={aiProvider}
             onChange={(e) =>
-              setAiProvider(
-                e.target.value as "openai" | "gemini",
-              )
+              setAiProvider(e.target.value as "openai" | "gemini")
             }
             className="w-full p-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0A5C2E]/20"
           >
@@ -815,10 +798,15 @@ export function AskGuganChatScreen({
               <div className="w-full h-full rounded-full bg-gradient-to-br from-amber-50 to-orange-100 flex items-center justify-center overflow-hidden">
                 <img
                   src={
-                    image_c00bd5357c41e8aa74e527dfb05640be2d95e6bd
+                    kidMurugan ||
+                    INLINE_PLACEHOLDER
                   }
                   alt="Gugan"
                   className="w-full h-full object-cover"
+                  onError={(e) =>
+                    ((e.target as HTMLImageElement).src =
+                      INLINE_PLACEHOLDER)
+                  }
                 />
               </div>
             </div>
@@ -834,143 +822,110 @@ export function AskGuganChatScreen({
               >
                 {language === "ta" ? "வணக்கம்!" : "வணக்கம்!"} 🙏
               </h2>
-              <p className="text-[15px] text-gray-700 max-w-[320px] mx-auto leading-relaxed" style={{ fontFamily: "var(--font-english-body)" }}>
-                {language === "ta" 
+              <p
+                className="text-[15px] text-gray-700 max-w-[320px] mx-auto leading-relaxed"
+                style={{ fontFamily: "var(--font-english-body)" }}
+              >
+                {language === "ta"
                   ? "நான் குகன், உங்கள் AI வழிகாட்டி. உங்கள் ஆன்மீக பயணத்தில் இன்று எப்படி உதவ முடியும்?"
-                  : "I'm Gugan, your AI devotional companion. How can I guide you on your spiritual journey today?"
-                }
+                  : "I'm Gugan, your AI devotional companion. How can I guide you on your spiritual journey today?"}
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 w-full max-w-[320px] px-[16px] py-[0px] pt-[2px] pr-[16px] pb-[0px] pl-[16px] mt-[0px] mr-[0px] mb-[-80px] ml-[0px]">
               <button
                 onClick={() =>
-                  handleQuickAction(
-                    "Find Murugan temples near me",
-                  )
+                  handleQuickAction("Find Murugan temples near me")
                 }
                 className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
               >
                 <div className="w-10 h-10 rounded-full bg-[#0A5C2E]/10 flex items-center justify-center">
                   <MapPin className="w-5 h-5 text-[#0A5C2E]" />
                 </div>
-                <span className="text-[12px] text-center">
-                  Find Temples
-                </span>
+                <span className="text-[12px] text-center">Find Temples</span>
               </button>
 
               <button
                 onClick={() =>
-                  handleQuickAction(
-                    "Play Murugan devotional songs",
-                  )
+                  handleQuickAction("Play Murugan devotional songs")
                 }
                 className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
               >
                 <div className="w-10 h-10 rounded-full bg-[#0A5C2E]/10 flex items-center justify-center">
                   <Music className="w-5 h-5 text-[#0A5C2E]" />
                 </div>
-                <span className="text-[12px] text-center">
-                  Devotional Songs
-                </span>
+                <span className="text-[12px] text-center">Devotional Songs</span>
               </button>
 
               <button
-                onClick={() =>
-                  handleQuickAction("Tell me today's panchang")
-                }
+                onClick={() => handleQuickAction("Tell me today's panchang")}
                 className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
               >
                 <div className="w-10 h-10 rounded-full bg-[#0A5C2E]/10 flex items-center justify-center">
                   <Calendar className="w-5 h-5 text-[#0A5C2E]" />
                 </div>
-                <span className="text-[12px] text-center">
-                  Panchang
-                </span>
+                <span className="text-[12px] text-center">Panchang</span>
               </button>
 
               <button
                 onClick={() =>
-                  handleQuickAction(
-                    "Tell me a story about Lord Murugan",
-                  )
+                  handleQuickAction("Tell me a story about Lord Murugan")
                 }
                 className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
               >
                 <div className="w-10 h-10 rounded-full bg-[#0A5C2E]/10 flex items-center justify-center">
                   <BookOpen className="w-5 h-5 text-[#0A5C2E]" />
                 </div>
-                <span className="text-[12px] text-center">
-                  Stories
-                </span>
+                <span className="text-[12px] text-center">Stories</span>
               </button>
 
               <button
-                onClick={() =>
-                  handleQuickAction(
-                    "Remind me for evening prayers",
-                  )
-                }
+                onClick={() => handleQuickAction("Remind me for evening prayers")}
                 className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
               >
                 <div className="w-10 h-10 rounded-full bg-[#0A5C2E]/10 flex items-center justify-center">
                   <Bell className="w-5 h-5 text-[#0A5C2E]" />
                 </div>
-                <span className="text-[12px] text-center">
-                  Reminders
-                </span>
+                <span className="text-[12px] text-center">Reminders</span>
               </button>
 
               <button
                 onClick={() =>
-                  handleQuickAction(
-                    "Plan my pilgrimage to Arupadai Veedu",
-                  )
+                  handleQuickAction("Plan my pilgrimage to Arupadai Veedu")
                 }
                 className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
               >
                 <div className="w-10 h-10 rounded-full bg-[#0A5C2E]/10 flex items-center justify-center">
                   <Sparkles className="w-5 h-5 text-[#0A5C2E]" />
                 </div>
-                <span className="text-[12px] text-center">
-                  Plan Trip
-                </span>
+                <span className="text-[12px] text-center">Plan Trip</span>
               </button>
 
               <button
-                onClick={() =>
-                  handleQuickAction(
-                    "Show me devotional rituals",
-                  )
-                }
+                onClick={() => handleQuickAction("Show me devotional rituals")}
                 className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
               >
                 <div className="w-10 h-10 rounded-full bg-[#0A5C2E]/10 flex items-center justify-center">
                   <Heart className="w-5 h-5 text-[#0A5C2E]" />
                 </div>
-                <span className="text-[12px] text-center">
-                  Rituals
-                </span>
+                <span className="text-[12px] text-center">Rituals</span>
               </button>
 
               <button
-                onClick={() =>
-                  handleQuickAction(
-                    "Explain significance of Vel",
-                  )
-                }
+                onClick={() => handleQuickAction("Explain significance of Vel")}
                 className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
               >
                 <div className="w-10 h-10 rounded-full bg-[#0A5C2E]/10 flex items-center justify-center">
                   <img
-                    src={imgVelWatermark}
+                    src={imgVelWatermark || INLINE_PLACEHOLDER}
                     alt="Vel"
                     className="w-6 h-6 object-contain"
+                    onError={(e) =>
+                      ((e.target as HTMLImageElement).src = INLINE_PLACEHOLDER)
+                    }
                   />
                 </div>
-                <span className="text-[12px] text-center">
-                  Vel Meaning
-                </span>
+                <span className="text-[12px] text-center">Vel Meaning</span>
               </button>
             </div>
           </div>
@@ -988,17 +943,18 @@ export function AskGuganChatScreen({
 
                 <div
                   className={`flex gap-2 ${
-                    message.sender === "user"
-                      ? "justify-end"
-                      : "justify-start"
+                    message.sender === "user" ? "justify-end" : "justify-start"
                   }`}
                 >
                   {message.sender === "ai" && (
                     <div className="w-[32px] h-[32px] rounded-full bg-[#0A5C2E] flex items-center justify-center flex-shrink-0 overflow-hidden">
                       <img
-                        src={muruganAvatar}
+                        src={muruganAvatar || INLINE_PLACEHOLDER}
                         alt="AI"
                         className="w-full h-full object-cover"
+                        onError={(e) =>
+                          ((e.target as HTMLImageElement).src = INLINE_PLACEHOLDER)
+                        }
                       />
                     </div>
                   )}
@@ -1020,14 +976,10 @@ export function AskGuganChatScreen({
                     {message.text && (
                       <p
                         className={`text-[14px] ${
-                          message.sender === "user"
-                            ? "text-gray-900"
-                            : "text-gray-800"
+                          message.sender === "user" ? "text-gray-900" : "text-gray-800"
                         }`}
                         style={{
-                          fontFamily: /[\u0B80-\u0BFF]/.test(
-                            message.text,
-                          )
+                          fontFamily: /[\u0B80-\u0BFF]/.test(message.text)
                             ? "TAU_elango_apsara, sans-serif"
                             : "Inter, sans-serif",
                         }}
@@ -1035,14 +987,8 @@ export function AskGuganChatScreen({
                         {message.text}
                       </p>
                     )}
-                    {message.actionCard && (
-                      <div className="mt-3">
-                        {renderActionCard(message.actionCard)}
-                      </div>
-                    )}
-                    <div className="text-[10px] text-gray-500 mt-1">
-                      {message.timestamp}
-                    </div>
+                    {message.actionCard && <div className="mt-3">{renderActionCard(message.actionCard)}</div>}
+                    <div className="text-[10px] text-gray-500 mt-1">{message.timestamp}</div>
                   </div>
 
                   {message.sender === "user" && (
@@ -1058,9 +1004,12 @@ export function AskGuganChatScreen({
               <div className="flex gap-2 justify-start">
                 <div className="w-[32px] h-[32px] rounded-full bg-[#0A5C2E] flex items-center justify-center flex-shrink-0 overflow-hidden">
                   <img
-                    src={muruganAvatar}
+                    src={muruganAvatar || INLINE_PLACEHOLDER}
                     alt="AI"
                     className="w-full h-full object-cover"
+                    onError={(e) =>
+                      ((e.target as HTMLImageElement).src = INLINE_PLACEHOLDER)
+                    }
                   />
                 </div>
                 <div className="bg-white shadow-sm rounded-2xl px-4 py-3">
@@ -1081,13 +1030,7 @@ export function AskGuganChatScreen({
       {/* INPUT AREA */}
       <div className="bg-white border-t border-gray-200 px-4 py-3">
         <div className="flex items-center gap-2">
-          <input
-            type="file"
-            ref={imageInputRef}
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
+          <input type="file" ref={imageInputRef} accept="image/*" onChange={handleImageUpload} className="hidden" />
           <button
             onClick={() => imageInputRef.current?.click()}
             className="w-[40px] h-[40px] flex items-center justify-center text-[#0A5C2E] hover:bg-gray-100 rounded-full transition-colors"
@@ -1101,23 +1044,15 @@ export function AskGuganChatScreen({
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              onKeyPress={(e) =>
-                e.key === "Enter" && handleSend()
-              }
-              placeholder={
-                isRecording
-                  ? "Listening..."
-                  : "Ask Gugan anything..."
-              }
+              onKeyPress={(e) => e.key === "Enter" && handleSend()}
+              placeholder={isRecording ? "Listening..." : "Ask Gugan anything..."}
               className="flex-1 bg-transparent outline-none text-[14px]"
               disabled={isRecording}
             />
             <button
               onClick={handleMicClick}
               className={`w-[32px] h-[32px] flex items-center justify-center rounded-full transition-colors ${
-                isRecording
-                  ? "bg-red-500 text-white animate-pulse"
-                  : "text-gray-600 hover:bg-gray-200"
+                isRecording ? "bg-red-500 text-white animate-pulse" : "text-gray-600 hover:bg-gray-200"
               }`}
             >
               <Mic className="w-4 h-4" />
@@ -1132,26 +1067,12 @@ export function AskGuganChatScreen({
             <Send className="w-5 h-5" />
           </button>
         </div>
-        {isRecording && transcript && (
-          <div className="mt-2 text-[12px] text-gray-600 italic">
-            "{transcript}"
-          </div>
-        )}
-        {!isOnline && (
-          <div className="mt-2 text-[12px] text-red-600 text-center">
-            📵 You are offline. Messages will be sent when
-            connection is restored.
-          </div>
-        )}
+        {isRecording && transcript && <div className="mt-2 text-[12px] text-gray-600 italic">"{transcript}"</div>}
+        {!isOnline && <div className="mt-2 text-[12px] text-red-600 text-center">📵 You are offline. Messages will be sent when connection is restored.</div>}
       </div>
 
       {/* Music Player Overlay */}
-      {showMusicPlayer && activeSongs.length > 0 && (
-        <MusicPlayer
-          songs={activeSongs}
-          onClose={() => setShowMusicPlayer(false)}
-        />
-      )}
+      {showMusicPlayer && activeSongs.length > 0 && <MusicPlayer songs={activeSongs} onClose={() => setShowMusicPlayer(false)} />}
     </div>
   );
 }

@@ -4,17 +4,16 @@
  * Tests all 12 critical analytics functions
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Separator } from '../ui/separator';
 import { 
-  CheckCircle2, XCircle, Loader2, Play, RefreshCw,
-  AlertTriangle, Database, TrendingUp, Activity
+  CheckCircle2, XCircle, Loader2, Play, Activity
 } from 'lucide-react';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { publicAnonKey } from '../../utils/supabase/info';
+import { fetchAdminResponseWith404Fallback } from '../../utils/adminAPI';
 
 interface TestResult {
   name: string;
@@ -40,13 +39,12 @@ export default function AnalyticsTestSuite() {
     { name: 'Unique IP Enforcement', description: 'Test duplicate tracking prevention', status: 'pending' },
     { name: 'Like Toggle', description: 'Test like/unlike toggling', status: 'pending' },
     { name: 'Reset Stats', description: 'Test analytics reset function', status: 'pending' },
+    { name: 'Launch QA (STEP 10)', description: 'Run bounded integrity checks (rollups, sessions, volume)', status: 'pending' },
     { name: 'Dashboard Data', description: 'Fetch admin dashboard overview', status: 'pending' },
   ]);
 
   const [running, setRunning] = useState(false);
   const [testItemId] = useState('00000000-0000-0000-0000-000000000001');
-  
-  const baseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;
 
   const updateTest = (index: number, updates: Partial<TestResult>) => {
     setTests(prev => prev.map((test, i) => 
@@ -74,6 +72,7 @@ export default function AnalyticsTestSuite() {
       testUniqueIPEnforcement,
       testLikeToggle,
       testResetStats,
+      testLaunchQA,
       testDashboard,
     ];
 
@@ -109,7 +108,7 @@ export default function AnalyticsTestSuite() {
 
   async function testSystemStatus() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/status`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/status`, {
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });
 
@@ -133,9 +132,42 @@ export default function AnalyticsTestSuite() {
     }
   }
 
+  async function testLaunchQA() {
+    try {
+      const res = await fetchAdminResponseWith404Fallback(`/api/admin/analytics/qa?window_days=7`, {
+        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+      });
+
+      if (!res.ok) {
+        return { passed: false, error: `HTTP ${res.status}`, response: await res.text() };
+      }
+
+      const data = await res.json();
+      if (!data?.success) {
+        return { passed: false, error: data?.error || 'QA failed', response: data };
+      }
+
+      const summary = data?.summary || { pass: 0, warn: 0, fail: 0 };
+      const warn = Number(summary.warn || 0);
+      const fail = Number(summary.fail || 0);
+
+      if (fail > 0 || warn > 0) {
+        return {
+          passed: false,
+          error: `QA not clean (fail=${fail}, warn=${warn})`,
+          response: data,
+        };
+      }
+
+      return { passed: true, response: data };
+    } catch (error: any) {
+      return { passed: false, error: error.message };
+    }
+  }
+
   async function testTrackView() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -167,7 +199,7 @@ export default function AnalyticsTestSuite() {
 
   async function testTrackLike() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -199,8 +231,8 @@ export default function AnalyticsTestSuite() {
 
   async function testCheckTracked() {
     try {
-      const res = await fetch(
-        `${baseUrl}/api/analytics/check/wallpaper/${testItemId}/like`,
+      const res = await fetchAdminResponseWith404Fallback(
+        `/api/analytics/check/wallpaper/${testItemId}/like`,
         {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         }
@@ -228,7 +260,7 @@ export default function AnalyticsTestSuite() {
 
   async function testUntrackLike() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/untrack`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/untrack`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -259,7 +291,7 @@ export default function AnalyticsTestSuite() {
 
   async function testTrackShare() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -291,7 +323,7 @@ export default function AnalyticsTestSuite() {
 
   async function testTrackDownload() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -323,7 +355,7 @@ export default function AnalyticsTestSuite() {
 
   async function testTrackVideoPlay() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -355,7 +387,7 @@ export default function AnalyticsTestSuite() {
 
   async function testTrackWatchComplete() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -387,8 +419,8 @@ export default function AnalyticsTestSuite() {
 
   async function testGetItemStats() {
     try {
-      const res = await fetch(
-        `${baseUrl}/api/analytics/stats/wallpaper/${testItemId}`,
+      const res = await fetchAdminResponseWith404Fallback(
+        `/api/analytics/stats/wallpaper/${testItemId}`,
         {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` }
         }
@@ -413,7 +445,7 @@ export default function AnalyticsTestSuite() {
   async function testUniqueIPEnforcement() {
     try {
       // Track the same event twice
-      const res1 = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res1 = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -429,7 +461,7 @@ export default function AnalyticsTestSuite() {
 
       const data1 = await res1.json();
 
-      const res2 = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res2 = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -463,7 +495,7 @@ export default function AnalyticsTestSuite() {
   async function testLikeToggle() {
     try {
       // Like
-      const res1 = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res1 = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -479,7 +511,7 @@ export default function AnalyticsTestSuite() {
       const data1 = await res1.json();
 
       // Unlike
-      const res2 = await fetch(`${baseUrl}/api/analytics/untrack`, {
+      const res2 = await fetchAdminResponseWith404Fallback(`/api/analytics/untrack`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -495,7 +527,7 @@ export default function AnalyticsTestSuite() {
       const data2 = await res2.json();
 
       // Like again
-      const res3 = await fetch(`${baseUrl}/api/analytics/track`, {
+      const res3 = await fetchAdminResponseWith404Fallback(`/api/analytics/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -526,7 +558,7 @@ export default function AnalyticsTestSuite() {
 
   async function testResetStats() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/reset`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -557,7 +589,7 @@ export default function AnalyticsTestSuite() {
 
   async function testDashboard() {
     try {
-      const res = await fetch(`${baseUrl}/api/analytics/admin/dashboard`, {
+      const res = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/dashboard`, {
         headers: { 'Authorization': `Bearer ${publicAnonKey}` }
       });
 

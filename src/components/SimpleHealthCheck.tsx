@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Activity, CheckCircle, AlertCircle, XCircle, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Activity, CheckCircle, XCircle } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { MuruganLoader } from './MuruganLoader';
 
 /**
  * SIMPLE HEALTH CHECK
@@ -80,7 +81,7 @@ export function SimpleHealthCheck() {
         >
           {testing ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <MuruganLoader variant="button" />
               Testing...
             </>
           ) : (
@@ -94,7 +95,7 @@ export function SimpleHealthCheck() {
 
       {testing && (
         <div className="bg-white rounded-lg p-8 text-center border-2 border-blue-200">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-3" />
+          <MuruganLoader variant="page" className="mx-auto mb-3" />
           <p className="text-gray-700 font-medium">Pinging edge function...</p>
           <p className="text-sm text-gray-500 mt-1">Timeout: 10 seconds</p>
         </div>

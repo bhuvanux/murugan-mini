@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Mic, MicOff } from 'lucide-react';
+import { MuruganLoader } from '../MuruganLoader';
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void;
@@ -151,7 +152,7 @@ export function VoiceInput({ onTranscript, isActive, onActiveChange }: VoiceInpu
             {/* Listening Text */}
             <div className="text-center">
               <div className="flex items-center justify-center gap-2 mb-2">
-                <Loader2 className="w-5 h-5 text-[#0d5e38] animate-spin" />
+                <MuruganLoader variant="inline" />
                 <p className="text-lg text-gray-900">Listening...</p>
               </div>
               

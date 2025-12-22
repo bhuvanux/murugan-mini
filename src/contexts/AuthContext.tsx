@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../utils/supabase/client';
 import { userAPI } from '../utils/api/client';
+import { setAnalyticsUserId } from '../utils/analytics/trackEvent';
 import { User } from '@supabase/supabase-js';
 
 type AuthContextType = {
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
+      setAnalyticsUserId(session?.user?.id ?? null);
       
       // Also set the token in the API client
       if (session?.access_token) {
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setAnalyticsUserId(session?.user?.id ?? null);
       
       // Update API client token
       if (session?.access_token) {

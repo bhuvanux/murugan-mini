@@ -1,29 +1,18 @@
 // YouTube Music Player - Spotify-style with Mini & Full View
 // For Songs & Videos Module
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipForward, SkipBack, Repeat, Shuffle, List, X, ChevronDown, Heart, Share2 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
-import { PlayingIndicator } from './PlayingIndicator';
-
-export interface YouTubeSong {
-  id: string;
-  title: string;
-  description?: string;
-  embedUrl: string;
-  thumbnail?: string;
-  stats?: {
-    views?: number;
-  };
-}
+import type { YouTubeMedia } from '@/utils/api/client';
 
 export interface YouTubeMusicPlayerProps {
-  songs: YouTubeSong[];
+  songs: YouTubeMedia[];
   currentIndex: number;
   autoPlay?: boolean;
   onClose?: () => void;
   onSongChange?: (index: number) => void;
   onToggleFavorite?: (songId: string) => void;
-  onShare?: (song: YouTubeSong) => void;
+  onShare?: (song: YouTubeMedia) => void;
   favorites?: Set<string>;
 }
 
@@ -117,11 +106,14 @@ export function YouTubeMusicPlayer({
     if (isPlayerReady && playerRef.current && currentYouTubeId) {
       console.log('[YouTubeMusicPlayer] Loading video:', currentYouTubeId);
       try {
-        playerRef.current.loadVideoById(currentYouTubeId);
         if (isPlaying) {
+          playerRef.current.loadVideoById(currentYouTubeId);
           setTimeout(() => {
             playerRef.current.playVideo();
           }, 100);
+        } else {
+          playerRef.current.cueVideoById(currentYouTubeId);
+          setCurrentTime(0);
         }
       } catch (e) {
         console.error('[YouTubeMusicPlayer] Error loading video:', e);

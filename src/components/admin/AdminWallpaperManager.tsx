@@ -33,6 +33,7 @@ interface Wallpaper {
   tags?: string[];
   folder_id?: string;
   scheduled_at?: string;
+  metadata?: any;
 }
 
 type ViewMode = "card" | "list";
@@ -77,6 +78,31 @@ export function AdminWallpaperManager() {
 
   // Reschedule modal state
   const [rescheduleWallpaper, setRescheduleWallpaper] = useState<Wallpaper | null>(null);
+
+  const formatBytes = (bytes?: number | null) => {
+    if (!bytes || bytes <= 0) return "—";
+    const units = ["B", "KB", "MB", "GB"];
+    const idx = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+    const value = bytes / Math.pow(1024, idx);
+    return `${value.toFixed(value >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+  };
+
+  const getCompressionInfo = (wallpaper: Wallpaper) => {
+    const md = wallpaper.metadata || {};
+    const originalBytes = typeof md.original_bytes === "number" ? md.original_bytes : undefined;
+    const compressedBytes = typeof md.compressed_bytes === "number" ? md.compressed_bytes : undefined;
+    const applied = md.compression_applied === true;
+    const method = typeof md.compression_method === "string" ? md.compression_method : undefined;
+
+    if (!originalBytes && !compressedBytes) return null;
+
+    return {
+      originalBytes,
+      compressedBytes,
+      applied,
+      method,
+    };
+  };
 
   // Load wallpapers from backend
   const loadWallpapers = async () => {
@@ -935,6 +961,18 @@ export function AdminWallpaperManager() {
                       {wallpaper.title}
                     </h3>
 
+                    {(() => {
+                      const info = getCompressionInfo(wallpaper);
+                      if (!info) return null;
+                      return (
+                        <div className="text-xs text-gray-500">
+                          {`Size: ${formatBytes(info.originalBytes)} → ${formatBytes(info.compressedBytes)}`}
+                          {info.applied ? " (compressed)" : ""}
+                          {info.method ? ` • ${info.method}` : ""}
+                        </div>
+                      );
+                    })()}
+
                     {/* Tags */}
                     {wallpaper.tags && wallpaper.tags.length > 0 && (
                       <div className="flex items-center gap-1 flex-wrap">
@@ -1075,6 +1113,18 @@ export function AdminWallpaperManager() {
                       <h3 className="font-semibold text-gray-800 text-inter-semibold-16">
                         {wallpaper.title}
                       </h3>
+
+                      {(() => {
+                        const info = getCompressionInfo(wallpaper);
+                        if (!info) return null;
+                        return (
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {`Size: ${formatBytes(info.originalBytes)} → ${formatBytes(info.compressedBytes)}`}
+                            {info.applied ? " (compressed)" : ""}
+                            {info.method ? ` • ${info.method}` : ""}
+                          </div>
+                        );
+                      })()}
                       
                       <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
                         <span className="flex items-center gap-1">

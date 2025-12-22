@@ -41,17 +41,13 @@ import {
   Play,
   CheckCircle,
   BookOpen,
-  MessageCircle,
-  Send,
   MousePointer,
   HeartOff,
   Plus,
   RefreshCw,
-  TrendingUp,
   Activity,
   Users,
   BarChart3,
-  Settings,
   ChevronDown,
   ChevronUp,
   Sparkles,
@@ -62,10 +58,8 @@ import {
   Brain,
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
-import { projectId, publicAnonKey } from "../../utils/supabase/info";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;
+import { publicAnonKey } from "../../utils/supabase/info";
+import { fetchAdminResponseWith404Fallback } from "../../utils/adminAPI";
 
 interface AnalyticsConfig {
   id: string;
@@ -129,7 +123,7 @@ export function AdminAnalyticsCenter() {
     setLoading(true);
     try {
       // Load dashboard stats
-      const dashboardRes = await fetch(`${API_BASE}/api/analytics/admin/dashboard`, {
+      const dashboardRes = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/dashboard`, {
         headers: { Authorization: `Bearer ${publicAnonKey}` },
       });
       const dashboardData = await dashboardRes.json();
@@ -138,7 +132,7 @@ export function AdminAnalyticsCenter() {
       }
 
       // Load configuration
-      const configRes = await fetch(`${API_BASE}/api/analytics/admin/config`, {
+      const configRes = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/config`, {
         headers: { Authorization: `Bearer ${publicAnonKey}` },
       });
       const configData = await configRes.json();
@@ -169,7 +163,7 @@ export function AdminAnalyticsCenter() {
 
   const toggleEventEnabled = async (moduleName: string, eventType: string, currentValue: boolean) => {
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/admin/config`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/config`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -197,7 +191,7 @@ export function AdminAnalyticsCenter() {
 
   const resetEventStats = async (moduleName: string, eventType: string) => {
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/admin/reset`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/reset`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -226,7 +220,7 @@ export function AdminAnalyticsCenter() {
   const refreshCache = async () => {
     setRefreshing(true);
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/admin/refresh`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/refresh`, {
         method: "POST",
         headers: { Authorization: `Bearer ${publicAnonKey}` },
       });
@@ -496,7 +490,7 @@ function AddEventDialog({ onSuccess }: { onSuccess: () => void }) {
     setSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/admin/config`, {
+      const response = await fetchAdminResponseWith404Fallback(`/api/analytics/admin/config`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

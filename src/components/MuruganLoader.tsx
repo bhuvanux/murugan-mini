@@ -1,36 +1,30 @@
-import React from 'react';
-import muruganImage from 'figma:asset/d5f2b8db8be54cd7632e2a54ce5388d6337b0c00.png';
+import muruganGif from '../custom-assets/murugan.gif';
 
 type MuruganLoaderProps = {
   size?: number;
+  variant?: 'inline' | 'button' | 'card' | 'page';
   className?: string;
 };
 
-export function MuruganLoader({ size = 40, className = '' }: MuruganLoaderProps) {
+export function MuruganLoader({ size, variant = 'inline', className = '' }: MuruganLoaderProps) {
+  const dimension =
+    typeof size === 'number'
+      ? `${size}px`
+      : variant === 'page'
+        ? 'clamp(90px, 22vw, 180px)'
+        : variant === 'card'
+          ? 'clamp(40px, 10vw, 88px)'
+          : variant === 'button'
+            ? 'clamp(18px, 4.5vw, 28px)'
+            : 'clamp(28px, 7vw, 48px)';
+
   return (
-    <div className={`inline-block ${className}`}>
-      <div className="relative" style={{ width: size, height: size }}>
-        <style>{`
-          @keyframes muruganPulse {
-            0%, 100% {
-              transform: scale(1);
-              opacity: 1;
-              filter: drop-shadow(0 0 0px rgba(13, 94, 56, 0));
-            }
-            50% {
-              transform: scale(1.15);
-              opacity: 0.85;
-              filter: drop-shadow(0 0 12px rgba(13, 94, 56, 0.6));
-            }
-          }
-        `}</style>
+    <div className={`inline-flex items-center justify-center ${className}`}>
+      <div className="relative" style={{ width: dimension, height: dimension }}>
         <img
-          src={muruganImage}
+          src={muruganGif}
           alt="Loading..."
-          className="w-full h-full"
-          style={{
-            animation: 'muruganPulse 1.5s ease-in-out infinite'
-          }}
+          className="w-full h-full object-contain"
         />
       </div>
     </div>
