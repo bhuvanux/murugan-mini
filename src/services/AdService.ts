@@ -45,6 +45,10 @@ class AdService {
         console.log(`[AdService] Meaningful action count: ${this.meaningfulActionsCount}/${AD_CONFIG.rules.minActionsBeforeInterstitial}`);
     }
 
+    public getMeaningfulActionsCount(): number {
+        return this.meaningfulActionsCount;
+    }
+
     public async initialize() {
         if (this.isInitialized) return;
 
@@ -81,6 +85,11 @@ class AdService {
         // 2. Check premium override
         if (AD_CONFIG.remoteConfig.premiumUserOverride) {
             return { safe: false, reason: "premium user detected" };
+        }
+
+        // 3.1 Check festival mode (Step 3 Guardrail)
+        if (AD_CONFIG.remoteConfig.festivalMode && adType === 'interstitial') {
+            return { safe: false, reason: "festival mode active" };
         }
 
         // 3. First launch delay rule (60 seconds)

@@ -35,6 +35,10 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
   // ✅ Cache blobs for instant sharing (fixes permission denied error)
   const blobCache = useRef<Map<string, Blob>>(new Map());
 
+  // Step 3: Swipe & Ad Tracking
+  const swipeCountRef = useRef(0);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     // Load liked media from localStorage
     const saved = localStorage.getItem("user_favorites");
@@ -85,6 +89,7 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "unset";
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     };
   }, []); // ✅ Run only once on mount
 
@@ -132,6 +137,32 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
       setCurrentIndex(newIndex);
       // Increment session actions for ad guardrail
       adService.incrementActions();
+
+      // Step 3: Increment Swipe Count & Trigger Ad Check
+      swipeCountRef.current += 1;
+      const currentSwipes = swipeCountRef.current;
+      console.log(`[WallpaperFullView] Swipe count: ${currentSwipes}`);
+
+      // Clear existing timeout (debounce)
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // Check for ad (Debounced - wait for swipe to settle)
+      // Only check if we hit the threshold
+      if (currentSwipes > 0 && currentSwipes % AD_CONFIG.rules.swipesBeforeInterstitial === 0) {
+        scrollTimeoutRef.current = setTimeout(async () => {
+          console.log(`[WallpaperFullView] Swipe threshold met (${currentSwipes}). Checking interstitial...`);
+          const result = await adService.showInterstitial();
+          const actions = adService.getMeaningfulActionsCount();
+
+          if (result.success) {
+            console.log(`[WallpaperFullView] Interstitial shown successfully. (Swipes: ${currentSwipes}, Actions: ${actions})`);
+          } else {
+            console.log(`[WallpaperFullView] Interstitial suppressed: ${result.reason} (Swipes: ${currentSwipes}, Actions: ${actions})`);
+          }
+        }, 500); // 500ms delay to ensure user has fully settled
+      }
     }
   };
 
