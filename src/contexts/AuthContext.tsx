@@ -8,6 +8,7 @@ type AuthContextType = {
   loading: boolean;
   sendOtp: (phone: string) => Promise<{ error: any }>;
   verifyOtp: (phone: string, token: string, metadata?: { full_name?: string; city?: string }) => Promise<{ error: any }>;
+  signInWithMock: (phone: string, metadata?: { full_name?: string; city?: string }) => void;
   signOut: () => Promise<void>;
 };
 
@@ -81,6 +82,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null };
   };
 
+  const signInWithMock = (phone: string, metadata?: { full_name?: string; city?: string }) => {
+    // MOCK USER OBJECT
+    const mockUser: User = {
+      id: 'mock-user-id-' + Math.random().toString(36).substr(2, 9),
+      app_metadata: {},
+      user_metadata: {
+        full_name: metadata?.full_name || 'Mock User',
+        city: metadata?.city || 'Mock City',
+      },
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+      phone: phone,
+      role: 'authenticated',
+      updated_at: new Date().toISOString(),
+    };
+
+    setUser(mockUser);
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -92,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, sendOtp, verifyOtp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, sendOtp, verifyOtp, signInWithMock, signOut }}>
       {children}
     </AuthContext.Provider>
   );
