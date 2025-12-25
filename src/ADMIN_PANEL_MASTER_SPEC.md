@@ -1675,7 +1675,7 @@ interface ModalProps {
 ### Toast Notifications
 
 ```typescript
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 // Success
 toast.success('Banner uploaded successfully');
