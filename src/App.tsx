@@ -40,7 +40,7 @@ type AppMode = "launcher" | "mobile" | "admin";
 function AppContent() {
   const { user, loading } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
-  const [appMode, setAppMode] = useState<AppMode>("launcher");
+  const [appMode, setAppMode] = useState<AppMode>("mobile");
   const [activeTab, setActiveTab] = useState<Tab>("gugan");
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [chatListRefreshKey, setChatListRefreshKey] = useState(0);
@@ -450,8 +450,8 @@ function AppContent() {
                 setActiveChatId(null);
               }}
               className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "gugan"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
+                ? "bg-white/20 scale-105"
+                : "hover:bg-white/10"
                 }`}
             >
               <MessageCircle
@@ -470,8 +470,8 @@ function AppContent() {
             <button
               onClick={() => setActiveTab("photos")}
               className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "photos"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
+                ? "bg-white/20 scale-105"
+                : "hover:bg-white/10"
                 }`}
             >
               <ImageIcon
@@ -490,8 +490,8 @@ function AppContent() {
             <button
               onClick={() => setActiveTab("songs")}
               className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "songs"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
+                ? "bg-white/20 scale-105"
+                : "hover:bg-white/10"
                 }`}
             >
               <Music
@@ -510,8 +510,8 @@ function AppContent() {
             <button
               onClick={() => setActiveTab("spark")}
               className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "spark"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
+                ? "bg-white/20 scale-105"
+                : "hover:bg-white/10"
                 }`}
             >
               <Sparkles
@@ -530,8 +530,8 @@ function AppContent() {
             <button
               onClick={() => setActiveTab("profile")}
               className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "profile"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
+                ? "bg-white/20 scale-105"
+                : "hover:bg-white/10"
                 }`}
             >
               <User
