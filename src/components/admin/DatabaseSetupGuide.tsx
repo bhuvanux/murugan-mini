@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Database, CheckCircle, XCircle, Loader2, AlertCircle, Copy, ExternalLink } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
 
 export function DatabaseSetupGuide() {

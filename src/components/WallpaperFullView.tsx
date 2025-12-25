@@ -14,7 +14,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { MediaItem } from "../utils/api/client";
 import { useWallpaperAnalytics } from "../utils/analytics/useAnalytics";

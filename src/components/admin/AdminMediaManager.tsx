@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw, BarChart3, FolderInput, Settings, CheckSquare, Grid3x3, List, Calendar as CalendarIcon, Clock, Play, Download } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { AddMediaModal } from "./AddMediaModal";
 import { DatabaseSetupGuide } from "./DatabaseSetupGuide";
 import { FolderDropdown } from "./FolderDropdown";

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ChevronRight, Heart, Music, Bell, Settings, Phone, Shield, LogOut, Download, Eye } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { AppHeader } from './AppHeader';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 

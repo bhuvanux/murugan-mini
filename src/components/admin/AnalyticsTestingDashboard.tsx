@@ -26,7 +26,7 @@ import {
   Download,
   Share2,
 } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
 import { analyticsTracker } from "../../utils/analytics/useAnalytics";
 import { createClient } from "@supabase/supabase-js";

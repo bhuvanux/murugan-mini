@@ -7,7 +7,7 @@ import { MuruganLoader } from './MuruganLoader';
 import { ModuleBannerCarousel } from './ModuleBannerCarousel';
 import { SimpleHealthCheck } from './SimpleHealthCheck';
 import { TestBackendConnection } from './TestBackendConnection';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageOff } from 'lucide-react';
 import { MockBannerAd } from './ads/MockBannerAd';

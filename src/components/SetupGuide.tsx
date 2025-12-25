@@ -4,7 +4,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
 import { AlertCircle, RefreshCw, Copy, Check, ExternalLink } from 'lucide-react';
 import { supabase } from '../utils/supabase/client';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 type SetupGuideProps = {
   onClose: () => void;

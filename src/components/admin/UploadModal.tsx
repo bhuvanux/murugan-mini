@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { X, Upload, Loader2, AlertCircle, CheckCircle, Trash2, FolderPlus, Calendar } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { Calendar as CalendarComponent } from "../ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { format } from "date-fns";

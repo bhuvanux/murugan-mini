@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw, Download, Heart, BarChart3, FolderInput, Settings, CheckSquare, Square, Grid3x3, List, Calendar as CalendarIcon, Clock } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { UploadModal } from "./UploadModal";
 import { DatabaseSetupGuide } from "./DatabaseSetupGuide";
 import { WallpaperDatabaseChecker } from "./WallpaperDatabaseChecker";

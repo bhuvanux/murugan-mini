@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { Button } from './ui/button';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Database, Loader2 } from 'lucide-react';
 
 export function SeedDataButton() {

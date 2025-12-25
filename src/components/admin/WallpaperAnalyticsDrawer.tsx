@@ -12,7 +12,7 @@ import {
   Loader2,
   BarChart3,
 } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
 import { DateRangeFilter, DateRangePreset } from "./DateRangeFilter";

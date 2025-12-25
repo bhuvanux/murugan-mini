@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { UploadModal } from "./UploadModal";
 import { DatabaseSetupGuide } from "./DatabaseSetupGuide";
 import { BannerDatabaseChecker } from "./BannerDatabaseChecker";

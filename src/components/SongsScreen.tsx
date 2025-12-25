@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { userAPI, YouTubeMedia } from "../utils/api/client";
 import { MuruganLoader } from "./MuruganLoader";

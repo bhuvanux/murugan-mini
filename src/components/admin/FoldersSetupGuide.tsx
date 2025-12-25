@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { AlertCircle, Copy, CheckCircle, Database, ExternalLink } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 export function FoldersSetupGuide() {
   const [copied, setCopied] = useState(false);

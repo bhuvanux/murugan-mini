@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Switch } from './ui/switch';
 import { Bell, Volume2, Mail, Smartphone, Check, X } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { useAuth } from '../contexts/AuthContext';
 

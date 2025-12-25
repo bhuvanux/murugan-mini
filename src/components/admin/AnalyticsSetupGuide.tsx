@@ -20,7 +20,7 @@ import {
   Code,
   BookOpen,
 } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;

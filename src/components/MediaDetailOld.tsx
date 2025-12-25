@@ -3,7 +3,7 @@ import { MediaItem, userAPI } from '../utils/api/client';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { X, Heart, Download, Loader2, ChevronUp } from 'lucide-react';
 import { Button } from './ui/button';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Badge } from './ui/badge';
 
 // WhatsApp icon component
