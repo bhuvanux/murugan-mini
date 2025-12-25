@@ -43,19 +43,19 @@ export function OTPVerification({ phone, onVerify, onResend, onBack, isLoading }
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 font-sans">
             <div className="text-center">
-                <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare className="w-8 h-8 text-[#0d5e38]" />
+                <div className="w-16 h-16 bg-[#e6f2ec] rounded-2xl flex items-center justify-center mx-auto mb-6 transform rotate-3">
+                    <MessageSquare className="w-8 h-8 text-[#084C28]" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">Verify OTP</h2>
-                <p className="text-sm text-gray-500 mt-2">
+                <h2 className="text-2xl font-bold text-[#084C28]">Verify OTP</h2>
+                <p className="text-sm text-gray-500 mt-3 font-medium">
                     We've sent a 6-digit code to <br />
-                    <span className="font-semibold text-gray-900">{phone}</span>
+                    <span className="font-bold text-gray-900 text-lg">{phone}</span>
                 </p>
             </div>
 
-            <div className="flex justify-center">
+            <div className="flex justify-center py-4">
                 <InputOTP
                     maxLength={6}
                     value={value}
@@ -63,24 +63,22 @@ export function OTPVerification({ phone, onVerify, onResend, onBack, isLoading }
                     onComplete={handleComplete}
                     pattern={REGEXP_ONLY_DIGITS}
                 >
-                    <InputOTPGroup>
-                        <InputOTPSlot index={0} />
-                        <InputOTPSlot index={1} />
-                        <InputOTPSlot index={2} />
-                    </InputOTPGroup>
-                    <InputOTPSeparator />
-                    <InputOTPGroup>
-                        <InputOTPSlot index={3} />
-                        <InputOTPSlot index={4} />
-                        <InputOTPSlot index={5} />
+                    <InputOTPGroup className="gap-2">
+                        {[0, 1, 2, 3, 4, 5].map((index) => (
+                            <InputOTPSlot
+                                key={index}
+                                index={index}
+                                className="h-14 w-12 text-xl font-bold rounded-xl border border-gray-200 shadow-sm focus:border-[#084C28] focus:ring-1 focus:ring-[#084C28] bg-white text-[#084C28]"
+                            />
+                        ))}
                     </InputOTPGroup>
                 </InputOTP>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
                 <Button
                     onClick={() => handleComplete(value)}
-                    className="w-full h-12 bg-[#0d5e38] hover:bg-[#0a4d2c] text-white font-bold rounded-xl"
+                    className="w-full h-14 bg-[#084C28] hover:bg-[#063a1f] text-white font-bold rounded-2xl shadow-md text-base transition-all active:scale-[0.98]"
                     disabled={isLoading || value.length < 6}
                 >
                     {isLoading ? 'Verifying...' : 'Verify & Continue'}
@@ -90,7 +88,9 @@ export function OTPVerification({ phone, onVerify, onResend, onBack, isLoading }
                     <button
                         onClick={handleResend}
                         disabled={timer > 0 || isLoading}
-                        className={`text-sm font-semibold flex items-center justify-center gap-2 mx-auto ${timer > 0 ? 'text-gray-400 cursor-not-allowed' : 'text-[#0d5e38] hover:underline'
+                        className={`text-sm font-bold flex items-center justify-center gap-2 mx-auto py-2 transition-colors ${timer > 0
+                                ? 'text-gray-400 cursor-not-allowed'
+                                : 'text-[#084C28] hover:text-[#063a1f] hover:underline'
                             }`}
                     >
                         <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -101,7 +101,7 @@ export function OTPVerification({ phone, onVerify, onResend, onBack, isLoading }
 
             <button
                 onClick={onBack}
-                className="flex items-center gap-2 text-gray-500 hover:text-gray-900 font-medium mx-auto transition-colors"
+                className="flex items-center gap-2 text-gray-500 hover:text-[#084C28] font-semibold mx-auto transition-colors text-sm"
             >
                 <ArrowLeft className="w-4 h-4" /> Change phone number
             </button>

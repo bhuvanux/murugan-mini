@@ -49,7 +49,7 @@ export function AuthContainer() {
         setIsLoading(true);
         try {
             // Dummy OTP Bypass
-            if (otp === '1234') {
+            if (otp === '123456') {
                 // Use MOCK implementation
                 signInWithMock(
                     authData.phone,
