@@ -243,7 +243,6 @@ function AppContent() {
     if (activeTab === "saved") {
       return (
         <div className="min-h-screen bg-white">
-          {/* Header */}
           <div className="fixed top-0 left-0 right-0 z-40 bg-[#0d5e38] px-4 py-4 flex items-center gap-3">
             <button
               onClick={() => setActiveTab("profile")}
@@ -253,8 +252,6 @@ function AppContent() {
             </button>
             <h1 className="text-white flex-1">Saved Items</h1>
           </div>
-
-          {/* Content */}
           <div className="pt-16">
             <SavedScreen onSelectMedia={handleMediaSelect} />
           </div>
@@ -265,7 +262,6 @@ function AppContent() {
     if (activeTab === "notifications") {
       return (
         <div className="min-h-screen bg-white">
-          {/* Header */}
           <div className="fixed top-0 left-0 right-0 z-40 bg-[#0d5e38] px-4 py-4 flex items-center gap-3">
             <button
               onClick={() => setActiveTab("profile")}
@@ -275,8 +271,6 @@ function AppContent() {
             </button>
             <h1 className="text-white flex-1">Notifications</h1>
           </div>
-
-          {/* Content */}
           <div className="pt-16">
             <NotificationsScreen />
           </div>
@@ -287,7 +281,6 @@ function AppContent() {
     if (activeTab === "account") {
       return (
         <div className="min-h-screen bg-white">
-          {/* Header without kolam */}
           <AppHeader title="" showKolam={false}>
             <button
               onClick={() => setActiveTab("profile")}
@@ -299,8 +292,6 @@ function AppContent() {
               Account Settings
             </h1>
           </AppHeader>
-
-          {/* Content */}
           <AccountSettingsScreen />
         </div>
       );
@@ -309,7 +300,6 @@ function AppContent() {
     if (activeTab === "contact") {
       return (
         <div className="min-h-screen bg-white">
-          {/* Header */}
           <div className="fixed top-0 left-0 right-0 z-40 bg-[#0d5e38] px-4 py-4 flex items-center gap-3">
             <button
               onClick={() => setActiveTab("profile")}
@@ -319,8 +309,6 @@ function AppContent() {
             </button>
             <h1 className="text-white flex-1">Contact Us</h1>
           </div>
-
-          {/* Content */}
           <div className="pt-16">
             <ContactScreen />
           </div>
@@ -331,7 +319,6 @@ function AppContent() {
     if (activeTab === "privacy") {
       return (
         <div className="min-h-screen bg-white">
-          {/* Header */}
           <div className="fixed top-0 left-0 right-0 z-40 bg-[#0d5e38] px-4 py-4 flex items-center gap-3">
             <button
               onClick={() => setActiveTab("profile")}
@@ -341,8 +328,6 @@ function AppContent() {
             </button>
             <h1 className="text-white flex-1">Privacy Policy</h1>
           </div>
-
-          {/* Content */}
           <div className="pt-16">
             <PrivacyPolicyScreen />
           </div>
@@ -351,19 +336,15 @@ function AppContent() {
     }
 
     // Main tabs
-    // Main tabs
     if (activeTab === "photos") {
       return (
         <div className="min-h-screen bg-white">
-          {/* Header Section with Green Background */}
           <AppHeader title="Wallpapers">
             <SearchBar
               onSearch={setSearchQuery}
               placeholder="Search murugan photos, videos..."
             />
           </AppHeader>
-
-          {/* Masonry Feed */}
           <MasonryFeed
             searchQuery={searchQuery}
             onSelectMedia={handleMediaSelect}
@@ -391,124 +372,76 @@ function AppContent() {
           onNavigate={(tab) => setActiveTab(tab)}
           onLogout={() => {
             console.log("User logged out");
-            // Auth Guard in AppContent will handle showing AuthContainer
           }}
         />
       );
     }
 
     return null;
+  };
 
-    return (
-      <div className="relative min-h-screen bg-white">
-        {/* Main Content */}
-        {renderActiveScreen()}
+  // Main AppContent Return
+  return (
+    <div className="relative min-h-screen bg-white">
+      {/* Main Content Area */}
+      {renderActiveScreen()}
 
-        {/* Media Detail Overlay */}
-        {selectedMedia && allMediaItems && (
-          <WallpaperFullView
-            media={allMediaItems}
-            initialIndex={allMediaItems.findIndex(m => m.id === selectedMedia.id)}
-            onClose={closeMediaDetail}
-          />
-        )}
+      {/* Media Detail Overlay */}
+      {selectedMedia && allMediaItems && (
+        <WallpaperFullView
+          media={allMediaItems}
+          initialIndex={allMediaItems.findIndex(m => m.id === selectedMedia.id)}
+          onClose={closeMediaDetail}
+        />
+      )}
 
-        {/* Bottom Navigation - Hide on Chat screens only */}
-        {!activeChatId && (
-          <div
-            className="fixed bottom-0 left-0 right-0 z-40 shadow-[0px_-4px_20px_rgba(0,0,0,0.15)] overflow-hidden"
-            style={{ background: "#0d5e38" }}
-          >
-            {/* Tab Buttons */}
-            <div className="flex justify-around items-center px-2 pt-[12px] pb-[16px] pr-[0px] pl-[0px]">
+      {/* Shared Bottom Navigation */}
+      {!activeChatId && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-40 shadow-[0px_-4px_20px_rgba(0,0,0,0.15)] overflow-hidden"
+          style={{ background: "#0d5e38" }}
+        >
+          <div className="flex justify-around items-center px-2 pt-[12px] pb-[16px]">
+            {/* Photos Tab */}
+            <button
+              onClick={() => setActiveTab("photos")}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "photos" ? "bg-white/20 scale-105" : "hover:bg-white/10"}`}
+            >
+              <ImageIcon className={`w-6 h-6 ${activeTab === "photos" ? "text-white" : "text-white/70"}`} />
+              <span className={`text-xs ${activeTab === "photos" ? "text-white" : "text-white/70"}`}>Photos</span>
+            </button>
 
+            {/* Songs Tab */}
+            <button
+              onClick={() => setActiveTab("songs")}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "songs" ? "bg-white/20 scale-105" : "hover:bg-white/10"}`}
+            >
+              <Music className={`w-6 h-6 ${activeTab === "songs" ? "text-white" : "text-white/70"}`} />
+              <span className={`text-xs ${activeTab === "songs" ? "text-white" : "text-white/70"}`}>Songs</span>
+            </button>
 
-              {/* Photos Tab */}
-              <button
-                onClick={() => setActiveTab("photos")}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "photos"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
-                  }`}
-              >
-                <ImageIcon
-                  className={`w-6 h-6 ${activeTab === "photos" ? "text-white" : "text-white/70"
-                    }`}
-                />
-                <span
-                  className={`text-xs ${activeTab === "photos" ? "text-white" : "text-white/70"
-                    }`}
-                >
-                  Photos
-                </span>
-              </button>
+            {/* Spark Tab */}
+            <button
+              onClick={() => setActiveTab("spark")}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "spark" ? "bg-white/20 scale-105" : "hover:bg-white/10"}`}
+            >
+              <Sparkles className={`w-6 h-6 ${activeTab === "spark" ? "text-white" : "text-white/70"}`} />
+              <span className={`text-xs ${activeTab === "spark" ? "text-white" : "text-white/70"}`}>Spark</span>
+            </button>
 
-              {/* Songs Tab */}
-              <button
-                onClick={() => setActiveTab("songs")}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "songs"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
-                  }`}
-              >
-                <Music
-                  className={`w-6 h-6 ${activeTab === "songs" ? "text-white" : "text-white/70"
-                    }`}
-                />
-                <span
-                  className={`text-xs ${activeTab === "songs" ? "text-white" : "text-white/70"
-                    }`}
-                >
-                  Songs
-                </span>
-              </button>
-
-              {/* Spark Tab */}
-              <button
-                onClick={() => setActiveTab("spark")}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "spark"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
-                  }`}
-              >
-                <Sparkles
-                  className={`w-6 h-6 ${activeTab === "spark" ? "text-white" : "text-white/70"
-                    }`}
-                />
-                <span
-                  className={`text-xs ${activeTab === "spark" ? "text-white" : "text-white/70"
-                    }`}
-                >
-                  Spark
-                </span>
-              </button>
-
-              {/* Profile Tab */}
-              <button
-                onClick={() => setActiveTab("profile")}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "profile"
-                  ? "bg-white/20 scale-105"
-                  : "hover:bg-white/10"
-                  }`}
-              >
-                <User
-                  className={`w-6 h-6 ${activeTab === "profile" ? "text-white" : "text-white/70"
-                    }`}
-                />
-                <span
-                  className={`text-xs ${activeTab === "profile" ? "text-white" : "text-white/70"
-                    }`}
-                >
-                  Profile
-                </span>
-              </button>
-            </div>
+            {/* Profile Tab */}
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "profile" ? "bg-white/20 scale-105" : "hover:bg-white/10"}`}
+            >
+              <User className={`w-6 h-6 ${activeTab === "profile" ? "text-white" : "text-white/70"}`} />
+              <span className={`text-xs ${activeTab === "profile" ? "text-white" : "text-white/70"}`}>Profile</span>
+            </button>
           </div>
-        )}
-      </div>
-    );
-  }
-
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function App() {
