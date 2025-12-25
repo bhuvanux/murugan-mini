@@ -10,6 +10,7 @@ import { TestBackendConnection } from './TestBackendConnection';
 import { toast } from 'sonner@2.0.3';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageOff } from 'lucide-react';
+import { MockBannerAd } from './ads/MockBannerAd';
 
 type MasonryFeedProps = {
   searchQuery?: string;
@@ -50,7 +51,7 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
 
     try {
       console.log(`[MasonryFeed] Loading wallpapers - Page: ${pageNum}, Search: ${search || 'none'}`);
-      
+
       const result = await userAPI.getWallpapers({
         search: search || undefined,
         page: pageNum,
@@ -65,7 +66,7 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
       }
 
       setMedia((prev) => (pageNum === 1 ? result.data : [...prev, ...result.data]));
-      
+
       if (result.data.length === 0 && pageNum === 1) {
         console.log('[MasonryFeed] No wallpapers found. Admin needs to upload content.');
       }
@@ -75,7 +76,7 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
       setShowErrorMessage(false);
     } catch (error: any) {
       console.error('[MasonryFeed] Error loading wallpapers:', error);
-      
+
       // Increment error count
       setErrorCount(prev => prev + 1);
 
@@ -194,18 +195,30 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
     <div className="pb-[79px]">
       {/* Banner Carousel - For wallpapers/photos module */}
       <ModuleBannerCarousel bannerType="wallpaper" />
-      
-      {/* Masonry Grid */}
+
+      {/* Masonry Grid with Ads */}
       <div className="grid grid-cols-2 gap-1 p-[5px]">
-        {media.map((item) => (
-          <MediaCard
-            key={item.id}
-            media={item}
-            onSelect={(mediaItem) => onSelectMedia(mediaItem, media)}
-            isFavorite={favorites.has(item.id)}
-            onToggleFavorite={toggleFavorite}
-          />
-        ))}
+        {media.flatMap((item, index) => {
+          const elements = [
+            <MediaCard
+              key={item.id}
+              media={item}
+              onSelect={(mediaItem) => onSelectMedia(mediaItem, media)}
+              isFavorite={favorites.has(item.id)}
+              onToggleFavorite={toggleFavorite}
+            />
+          ];
+
+          // Inject Ad every 6 items (index 5, 11, 17...)
+          if ((index + 1) % 6 === 0) {
+            elements.push(
+              <div key={`ad-${index}`} className="col-span-2 py-2">
+                <MockBannerAd />
+              </div>
+            );
+          }
+          return elements;
+        })}
       </div>
 
       {hasMore && !showErrorMessage && (
@@ -255,15 +268,15 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
         <div className="px-4">
           {/* Simple Health Check - Test if edge function is alive */}
           <SimpleHealthCheck />
-          
+
           {/* Backend Connection Test Tool */}
           <TestBackendConnection />
-          
+
           {!searchQuery && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-4">
               <h3 className="text-orange-900 mb-2">📸 No Wallpapers Yet!</h3>
               <p className="text-sm text-gray-700 mb-3">
-                The admin hasn't uploaded any wallpapers yet. 
+                The admin hasn't uploaded any wallpapers yet.
               </p>
               <p className="text-sm text-gray-600">
                 <strong>Admin:</strong> Go to your admin panel and upload some photos/videos to get started!
@@ -273,8 +286,8 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
           <EmptyState
             icon={ImageOff}
             title="No wallpapers found"
-            description={searchQuery 
-              ? `No results for \"${searchQuery}\". Try a different search term.` 
+            description={searchQuery
+              ? `No results for \"${searchQuery}\". Try a different search term.`
               : "No wallpapers or videos have been uploaded yet."}
           />
         </div>

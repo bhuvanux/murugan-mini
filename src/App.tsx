@@ -34,14 +34,14 @@ import {
   MessageCircle,
 } from "lucide-react";
 
-type Tab = "gugan" | "photos" | "songs" | "spark" | "profile" | "admin" | "saved" | "notifications" | "account" | "contact" | "privacy";
+type Tab = "photos" | "songs" | "spark" | "profile" | "admin" | "saved" | "notifications" | "account" | "contact" | "privacy";
 type AppMode = "launcher" | "mobile" | "admin";
 
 function AppContent() {
   const { user, loading } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
   const [appMode, setAppMode] = useState<AppMode>("mobile");
-  const [activeTab, setActiveTab] = useState<Tab>("gugan");
+  const [activeTab, setActiveTab] = useState<Tab>("photos");
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [chatListRefreshKey, setChatListRefreshKey] = useState(0);
   const [selectedMedia, setSelectedMedia] =
@@ -351,28 +351,7 @@ function AppContent() {
     }
 
     // Main tabs
-    if (activeTab === "gugan") {
-      if (activeChatId) {
-        return (
-          <AskGuganChatScreen
-            chatId={activeChatId}
-            onBack={() => {
-              setActiveChatId(null);
-              setChatListRefreshKey((prev) => prev + 1);
-            }}
-            userId={user?.id}
-          />
-        );
-      }
-      return (
-        <AskGuganScreen
-          key={chatListRefreshKey}
-          onStartChat={(chatId) => setActiveChatId(chatId)}
-          userId={user?.id}
-        />
-      );
-    }
-
+    // Main tabs
     if (activeTab === "photos") {
       return (
         <div className="min-h-screen bg-white">
@@ -419,137 +398,117 @@ function AppContent() {
     }
 
     return null;
-  };
 
-  return (
-    <div className="relative min-h-screen bg-white">
-      {/* Main Content */}
-      {renderActiveScreen()}
+    return (
+      <div className="relative min-h-screen bg-white">
+        {/* Main Content */}
+        {renderActiveScreen()}
 
-      {/* Media Detail Overlay */}
-      {selectedMedia && allMediaItems && (
-        <WallpaperFullView
-          media={allMediaItems}
-          initialIndex={allMediaItems.findIndex(m => m.id === selectedMedia.id)}
-          onClose={closeMediaDetail}
-        />
-      )}
+        {/* Media Detail Overlay */}
+        {selectedMedia && allMediaItems && (
+          <WallpaperFullView
+            media={allMediaItems}
+            initialIndex={allMediaItems.findIndex(m => m.id === selectedMedia.id)}
+            onClose={closeMediaDetail}
+          />
+        )}
 
-      {/* Bottom Navigation - Hide on Chat screens only */}
-      {!activeChatId && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-40 shadow-[0px_-4px_20px_rgba(0,0,0,0.15)] overflow-hidden"
-          style={{ background: "#0d5e38" }}
-        >
-          {/* Tab Buttons */}
-          <div className="flex justify-around items-center px-2 pt-[12px] pb-[16px] pr-[0px] pl-[0px]">
-            {/* Ask Gugan Tab */}
-            <button
-              onClick={() => {
-                setActiveTab("gugan");
-                setActiveChatId(null);
-              }}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "gugan"
-                ? "bg-white/20 scale-105"
-                : "hover:bg-white/10"
-                }`}
-            >
-              <MessageCircle
-                className={`w-6 h-6 ${activeTab === "gugan" ? "text-white" : "text-white/70"
-                  }`}
-              />
-              <span
-                className={`text-xs ${activeTab === "gugan" ? "text-white" : "text-white/70"
+        {/* Bottom Navigation - Hide on Chat screens only */}
+        {!activeChatId && (
+          <div
+            className="fixed bottom-0 left-0 right-0 z-40 shadow-[0px_-4px_20px_rgba(0,0,0,0.15)] overflow-hidden"
+            style={{ background: "#0d5e38" }}
+          >
+            {/* Tab Buttons */}
+            <div className="flex justify-around items-center px-2 pt-[12px] pb-[16px] pr-[0px] pl-[0px]">
+
+
+              {/* Photos Tab */}
+              <button
+                onClick={() => setActiveTab("photos")}
+                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "photos"
+                  ? "bg-white/20 scale-105"
+                  : "hover:bg-white/10"
                   }`}
               >
-                Ask Gugan
-              </span>
-            </button>
+                <ImageIcon
+                  className={`w-6 h-6 ${activeTab === "photos" ? "text-white" : "text-white/70"
+                    }`}
+                />
+                <span
+                  className={`text-xs ${activeTab === "photos" ? "text-white" : "text-white/70"
+                    }`}
+                >
+                  Photos
+                </span>
+              </button>
 
-            {/* Photos Tab */}
-            <button
-              onClick={() => setActiveTab("photos")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "photos"
-                ? "bg-white/20 scale-105"
-                : "hover:bg-white/10"
-                }`}
-            >
-              <ImageIcon
-                className={`w-6 h-6 ${activeTab === "photos" ? "text-white" : "text-white/70"
-                  }`}
-              />
-              <span
-                className={`text-xs ${activeTab === "photos" ? "text-white" : "text-white/70"
+              {/* Songs Tab */}
+              <button
+                onClick={() => setActiveTab("songs")}
+                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "songs"
+                  ? "bg-white/20 scale-105"
+                  : "hover:bg-white/10"
                   }`}
               >
-                Photos
-              </span>
-            </button>
+                <Music
+                  className={`w-6 h-6 ${activeTab === "songs" ? "text-white" : "text-white/70"
+                    }`}
+                />
+                <span
+                  className={`text-xs ${activeTab === "songs" ? "text-white" : "text-white/70"
+                    }`}
+                >
+                  Songs
+                </span>
+              </button>
 
-            {/* Songs Tab */}
-            <button
-              onClick={() => setActiveTab("songs")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "songs"
-                ? "bg-white/20 scale-105"
-                : "hover:bg-white/10"
-                }`}
-            >
-              <Music
-                className={`w-6 h-6 ${activeTab === "songs" ? "text-white" : "text-white/70"
-                  }`}
-              />
-              <span
-                className={`text-xs ${activeTab === "songs" ? "text-white" : "text-white/70"
+              {/* Spark Tab */}
+              <button
+                onClick={() => setActiveTab("spark")}
+                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "spark"
+                  ? "bg-white/20 scale-105"
+                  : "hover:bg-white/10"
                   }`}
               >
-                Songs
-              </span>
-            </button>
+                <Sparkles
+                  className={`w-6 h-6 ${activeTab === "spark" ? "text-white" : "text-white/70"
+                    }`}
+                />
+                <span
+                  className={`text-xs ${activeTab === "spark" ? "text-white" : "text-white/70"
+                    }`}
+                >
+                  Spark
+                </span>
+              </button>
 
-            {/* Spark Tab */}
-            <button
-              onClick={() => setActiveTab("spark")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "spark"
-                ? "bg-white/20 scale-105"
-                : "hover:bg-white/10"
-                }`}
-            >
-              <Sparkles
-                className={`w-6 h-6 ${activeTab === "spark" ? "text-white" : "text-white/70"
-                  }`}
-              />
-              <span
-                className={`text-xs ${activeTab === "spark" ? "text-white" : "text-white/70"
+              {/* Profile Tab */}
+              <button
+                onClick={() => setActiveTab("profile")}
+                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "profile"
+                  ? "bg-white/20 scale-105"
+                  : "hover:bg-white/10"
                   }`}
               >
-                Spark
-              </span>
-            </button>
-
-            {/* Profile Tab */}
-            <button
-              onClick={() => setActiveTab("profile")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "profile"
-                ? "bg-white/20 scale-105"
-                : "hover:bg-white/10"
-                }`}
-            >
-              <User
-                className={`w-6 h-6 ${activeTab === "profile" ? "text-white" : "text-white/70"
-                  }`}
-              />
-              <span
-                className={`text-xs ${activeTab === "profile" ? "text-white" : "text-white/70"
-                  }`}
-              >
-                Profile
-              </span>
-            </button>
+                <User
+                  className={`w-6 h-6 ${activeTab === "profile" ? "text-white" : "text-white/70"
+                    }`}
+                />
+                <span
+                  className={`text-xs ${activeTab === "profile" ? "text-white" : "text-white/70"
+                    }`}
+                >
+                  Profile
+                </span>
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  }
+
 }
 
 export default function App() {
