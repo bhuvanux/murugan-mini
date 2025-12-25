@@ -1,0 +1,16 @@
+{
+    "appId": "com.murugan.ai",
+    "appName": "Murugan AI",
+    "webDir": "build",
+    "plugins": {
+        "SplashScreen": {
+            "backgroundColor": "#084C28",
+            "launchShowDuration": 3000,
+            "launchAutoHide": true,
+            "showSpinner": false,
+            "androidScaleType": "FIT_CENTER",
+            "splashFullScreen": true,
+            "splashImmersive": true
+        }
+    }
+}

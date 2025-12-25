@@ -6,7 +6,8 @@ import { User } from '@supabase/supabase-js';
 type AuthContextType = {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  sendOtp: (phone: string) => Promise<{ error: any }>;
+  verifyOtp: (phone: string, token: string, metadata?: { full_name?: string; city?: string }) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 };
 
@@ -21,7 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
-      
+
       // Also set the token in the API client
       if (session?.access_token) {
         userAPI.setUserToken(session.access_token);
@@ -33,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      
+
       // Update API client token
       if (session?.access_token) {
         userAPI.setUserToken(session.access_token);
@@ -43,26 +44,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+  const sendOtp = async (phone: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      phone,
+    });
+    return { error };
+  };
+
+  const verifyOtp = async (phone: string, token: string, metadata?: { full_name?: string; city?: string }) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone,
+      token,
+      type: 'sms',
     });
 
-    if (error) throw error;
-    
+    if (error) return { error };
+
+    if (data.user && metadata) {
+      // Update user metadata if provided (Signup flow)
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          full_name: metadata.full_name,
+          city: metadata.city,
+        }
+      });
+      if (updateError) console.error('Error updating user metadata:', updateError);
+    }
+
     setUser(data.user);
-    
+
     // Set the token in the API client for admin backend calls
     if (data.session?.access_token) {
       userAPI.setUserToken(data.session.access_token);
     }
+
+    return { error: null };
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    
+
     // Clear token from localStorage
     if (typeof window !== 'undefined') {
       localStorage.removeItem('user_token');
@@ -70,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, sendOtp, verifyOtp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -18,7 +18,7 @@ type UserStats = {
   totalViews: number;
 };
 
-export function ProfileScreen({ 
+export function ProfileScreen({
   onNavigate,
   onLogout
 }: ProfileScreenProps) {
@@ -115,29 +115,22 @@ export function ProfileScreen({
   };
 
   const getUserDisplayName = () => {
-    if (user?.email) {
-      const name = user.email.split('@')[0];
-      return name.charAt(0).toUpperCase() + name.slice(1);
-    }
-    if (user?.phone) {
-      return `User ${user.phone.slice(-4)}`;
-    }
-    return 'Bhuvanesh';
+    return user?.user_metadata?.full_name || user?.user_metadata?.name || 'Devotee';
   };
 
   const getUserEmail = () => {
-    return user?.email || user?.phone || 'bhuvanux@gmail.com';
+    return user?.phone || user?.email || 'N/A';
   };
 
   return (
     <div className="bg-[#F2FFF6] min-h-screen pb-20" style={{ fontFamily: 'var(--font-english)' }}>
       {/* Header with Kolam */}
       <AppHeader title="Profile" />
-      
+
       {/* Hero Banner with Profile */}
       <div className="relative">
         {/* Lord Murugan Banner */}
-        <div 
+        <div
           className="h-56 bg-cover bg-center relative"
           style={{
             backgroundImage: `url('https://images.unsplash.com/photo-1590659948963-caafdecdfe64?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoaW5kdSUyMHRlbXBsZSUyMGRlaXR5fGVufDF8fHx8MTc2MjkyNTA2N3ww&ixlib=rb-4.1.0&q=80&w=1080')`,
@@ -149,7 +142,7 @@ export function ProfileScreen({
         {/* Profile Picture Overlapping */}
         <div className="absolute left-1/2 transform -translate-x-1/2 -bottom-20">
           <div className="w-40 h-40 rounded-full bg-white p-1.5 shadow-2xl">
-            <div 
+            <div
               className="w-full h-full rounded-full bg-cover bg-center border-4 border-white"
               style={{
                 backgroundImage: `url('https://images.unsplash.com/photo-1550853607-9b3b692e50bd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsb3JkJTIwbXVydWdhbiUyMHN0YXR1ZXxlbnwxfHx8fDE3NjI5NTYyMTd8MA&ixlib=rb-4.1.0&q=80&w=1080')`,

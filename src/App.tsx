@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { SplashScreen } from "./components/SplashScreen";
-import { LoginScreen } from "./components/LoginScreen";
-import { PhoneLogin } from "./components/PhoneLogin";
+import { AuthContainer } from "./components/auth/AuthContainer";
 import { MasonryFeed } from "./components/MasonryFeed";
 import { WallpaperFullView } from "./components/WallpaperFullView";
 import { SongsScreen } from "./components/SongsScreen";
@@ -41,7 +40,6 @@ type AppMode = "launcher" | "mobile" | "admin";
 function AppContent() {
   const { user, loading } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
-  const [showLogin, setShowLogin] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("launcher");
   const [activeTab, setActiveTab] = useState<Tab>("gugan");
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -163,16 +161,16 @@ function AppContent() {
   // ✅ NEW: Update media item in the allMediaItems array
   const handleMediaUpdate = (mediaId: string, updates: Partial<MediaItem>) => {
     if (allMediaItems) {
-      const updatedMedia = allMediaItems.map(item => 
+      const updatedMedia = allMediaItems.map(item =>
         item.id === mediaId ? { ...item, ...updates } : item
       );
       setAllMediaItems(updatedMedia);
-      
+
       // Also update selectedMedia if it's the one being updated
       if (selectedMedia?.id === mediaId) {
         setSelectedMedia({ ...selectedMedia, ...updates });
       }
-      
+
       console.log(`[App] ✅ Updated media ${mediaId} with:`, updates);
     }
   };
@@ -201,6 +199,11 @@ function AppContent() {
         <MuruganLoader size={60} />
       </div>
     );
+  }
+
+  // Auth Guard: If no user, show AuthContainer
+  if (!user) {
+    return <AuthContainer />;
   }
 
   // Show setup guide if tables don't exist
@@ -409,7 +412,7 @@ function AppContent() {
           onNavigate={(tab) => setActiveTab(tab)}
           onLogout={() => {
             console.log("User logged out");
-            setShowLogin(true);
+            // Auth Guard in AppContent will handle showing AuthContainer
           }}
         />
       );
@@ -446,21 +449,18 @@ function AppContent() {
                 setActiveTab("gugan");
                 setActiveChatId(null);
               }}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "gugan"
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "gugan"
                   ? "bg-white/20 scale-105"
                   : "hover:bg-white/10"
-              }`}
+                }`}
             >
               <MessageCircle
-                className={`w-6 h-6 ${
-                  activeTab === "gugan" ? "text-white" : "text-white/70"
-                }`}
+                className={`w-6 h-6 ${activeTab === "gugan" ? "text-white" : "text-white/70"
+                  }`}
               />
               <span
-                className={`text-xs ${
-                  activeTab === "gugan" ? "text-white" : "text-white/70"
-                }`}
+                className={`text-xs ${activeTab === "gugan" ? "text-white" : "text-white/70"
+                  }`}
               >
                 Ask Gugan
               </span>
@@ -469,21 +469,18 @@ function AppContent() {
             {/* Photos Tab */}
             <button
               onClick={() => setActiveTab("photos")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "photos"
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "photos"
                   ? "bg-white/20 scale-105"
                   : "hover:bg-white/10"
-              }`}
+                }`}
             >
               <ImageIcon
-                className={`w-6 h-6 ${
-                  activeTab === "photos" ? "text-white" : "text-white/70"
-                }`}
+                className={`w-6 h-6 ${activeTab === "photos" ? "text-white" : "text-white/70"
+                  }`}
               />
               <span
-                className={`text-xs ${
-                  activeTab === "photos" ? "text-white" : "text-white/70"
-                }`}
+                className={`text-xs ${activeTab === "photos" ? "text-white" : "text-white/70"
+                  }`}
               >
                 Photos
               </span>
@@ -492,21 +489,18 @@ function AppContent() {
             {/* Songs Tab */}
             <button
               onClick={() => setActiveTab("songs")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "songs"
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "songs"
                   ? "bg-white/20 scale-105"
                   : "hover:bg-white/10"
-              }`}
+                }`}
             >
               <Music
-                className={`w-6 h-6 ${
-                  activeTab === "songs" ? "text-white" : "text-white/70"
-                }`}
+                className={`w-6 h-6 ${activeTab === "songs" ? "text-white" : "text-white/70"
+                  }`}
               />
               <span
-                className={`text-xs ${
-                  activeTab === "songs" ? "text-white" : "text-white/70"
-                }`}
+                className={`text-xs ${activeTab === "songs" ? "text-white" : "text-white/70"
+                  }`}
               >
                 Songs
               </span>
@@ -515,21 +509,18 @@ function AppContent() {
             {/* Spark Tab */}
             <button
               onClick={() => setActiveTab("spark")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "spark"
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "spark"
                   ? "bg-white/20 scale-105"
                   : "hover:bg-white/10"
-              }`}
+                }`}
             >
               <Sparkles
-                className={`w-6 h-6 ${
-                  activeTab === "spark" ? "text-white" : "text-white/70"
-                }`}
+                className={`w-6 h-6 ${activeTab === "spark" ? "text-white" : "text-white/70"
+                  }`}
               />
               <span
-                className={`text-xs ${
-                  activeTab === "spark" ? "text-white" : "text-white/70"
-                }`}
+                className={`text-xs ${activeTab === "spark" ? "text-white" : "text-white/70"
+                  }`}
               >
                 Spark
               </span>
@@ -538,21 +529,18 @@ function AppContent() {
             {/* Profile Tab */}
             <button
               onClick={() => setActiveTab("profile")}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
-                activeTab === "profile"
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${activeTab === "profile"
                   ? "bg-white/20 scale-105"
                   : "hover:bg-white/10"
-              }`}
+                }`}
             >
               <User
-                className={`w-6 h-6 ${
-                  activeTab === "profile" ? "text-white" : "text-white/70"
-                }`}
+                className={`w-6 h-6 ${activeTab === "profile" ? "text-white" : "text-white/70"
+                  }`}
               />
               <span
-                className={`text-xs ${
-                  activeTab === "profile" ? "text-white" : "text-white/70"
-                }`}
+                className={`text-xs ${activeTab === "profile" ? "text-white" : "text-white/70"
+                  }`}
               >
                 Profile
               </span>

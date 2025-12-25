@@ -31,8 +31,9 @@ export function AccountSettingsScreen() {
   const { user, signOut } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(
-    user?.email?.split('@')[0] || 'Devotee'
+    user?.user_metadata?.full_name || user?.user_metadata?.name || 'Devotee'
   );
+  const [city, setCity] = useState(user?.user_metadata?.city || '');
   const [profileImage, setProfileImage] = useState<string>('https://images.unsplash.com/photo-1550853607-9b3b692e50bd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -43,9 +44,20 @@ export function AccountSettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
 
-  const handleSaveProfile = () => {
-    toast.success('Profile updated successfully!');
-    setIsEditing(false);
+  const handleSaveProfile = async () => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: displayName,
+          city: city,
+        }
+      });
+      if (error) throw error;
+      toast.success('Profile updated successfully!');
+      setIsEditing(false);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update profile');
+    }
   };
 
   const handleProfileImageClick = () => {
@@ -196,13 +208,26 @@ export function AccountSettingsScreen() {
 
               {/* Display Name */}
               <div>
-                <Label htmlFor="displayName">Display Name</Label>
+                <Label htmlFor="displayName">Full Name</Label>
                 <Input
                   id="displayName"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   disabled={!isEditing}
                   className="mt-1"
+                />
+              </div>
+
+              {/* City */}
+              <div>
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  disabled={!isEditing}
+                  className="mt-1"
+                  placeholder="Your City"
                 />
               </div>
 
@@ -255,24 +280,6 @@ export function AccountSettingsScreen() {
           </div>
         </Card>
 
-        {/* Security */}
-        <Card className="mb-4 border-[#E6F0EA]">
-          <div className="p-4">
-            <h3 className="font-bold mb-4 flex items-center gap-2">
-              <Lock className="w-5 h-5 text-[#D97706]" />
-              Security
-            </h3>
-
-            <Button
-              variant="outline"
-              className="w-full justify-start"
-              onClick={() => setShowPasswordDialog(true)}
-            >
-              <Lock className="w-4 h-4 mr-2" />
-              Change Password
-            </Button>
-          </div>
-        </Card>
 
         {/* Data & Privacy */}
         <Card className="mb-4 border-[#E6F0EA]">
@@ -337,76 +344,6 @@ export function AccountSettingsScreen() {
         </Card>
       </div>
 
-      {/* Change Password Dialog */}
-      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Lock className="w-5 h-5 text-[#0d5e38]" />
-              Change Password
-            </DialogTitle>
-            <DialogDescription>
-              Enter your current password and choose a new one.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="currentPassword">Current Password</Label>
-              <Input
-                id="currentPassword"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Enter current password"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="newPassword">New Password</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password (min. 6 characters)"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
-                className="mt-1"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowPasswordDialog(false);
-                setCurrentPassword('');
-                setNewPassword('');
-                setConfirmPassword('');
-              }}
-              disabled={changingPassword}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleChangePassword}
-              disabled={changingPassword}
-              className="bg-[#0d5e38] hover:bg-[#0a5b34]"
-            >
-              {changingPassword ? 'Changing...' : 'Change Password'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

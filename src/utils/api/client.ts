@@ -101,7 +101,7 @@ class UserAPI {
     useCache = true, // Enable caching by default for GET requests
   ): Promise<T> {
     const isGetRequest = !options.method || options.method === 'GET';
-    
+
     // Check cache for GET requests
     if (isGetRequest && useCache) {
       const cached = apiCache.get<T>(endpoint);
@@ -131,7 +131,7 @@ class UserAPI {
     if (token) {
       headers["X-User-Token"] = token;
     }
-    
+
     // IMPORTANT: For public endpoints, we use the admin anon key without user token
     // This allows unauthenticated browsing of public content
 
@@ -159,13 +159,13 @@ class UserAPI {
           const error = await response
             .json()
             .catch(() => ({ message: "Request failed" }));
-          
+
           // Check if it's an authentication error (unauthorized/invalid token)
-          const isAuthError = error.error === 'unauthorized' || 
-                             error.message?.includes('Invalid token') ||
-                             error.message?.includes('unauthorized') ||
-                             response.status === 401;
-          
+          const isAuthError = error.error === 'unauthorized' ||
+            error.message?.includes('Invalid token') ||
+            error.message?.includes('unauthorized') ||
+            response.status === 401;
+
           // For auth errors on public endpoints, throw a special error that can be caught
           if (isAuthError) {
             // Don't log here - will be logged once when handled by calling function
@@ -174,14 +174,14 @@ class UserAPI {
             authError.statusCode = response.status;
             throw authError;
           }
-          
+
           // Check if it's a resource limit error
-          const isResourceLimit = error.code === 'WORKER_LIMIT' || 
-                                 error.message?.includes('compute resources') ||
-                                 error.message?.includes('timeout') || 
-                                 error.message?.includes('connection pool') ||
-                                 error.error === 'server_error';
-          
+          const isResourceLimit = error.code === 'WORKER_LIMIT' ||
+            error.message?.includes('compute resources') ||
+            error.message?.includes('timeout') ||
+            error.message?.includes('connection pool') ||
+            error.error === 'server_error';
+
           // Retry on resource errors with longer delay
           if (isResourceLimit && retryCount < maxRetries) {
             const delay = 1500; // Fixed delay for single retry
@@ -197,14 +197,14 @@ class UserAPI {
         }
 
         const data = await response.json();
-        
+
         // Cache successful GET responses
         if (isGetRequest && useCache) {
           // Use longer TTL for media lists (10 minutes)
           const ttl = endpoint.includes('/media/list') ? 10 * 60 * 1000 : 5 * 60 * 1000;
           apiCache.set(endpoint, data, ttl);
         }
-        
+
         return data;
       } catch (error: any) {
         // Check if it's an abort/timeout error
@@ -237,44 +237,7 @@ class UserAPI {
     return requestPromise;
   }
 
-  // ========================================
-  // AUTHENTICATION
-  // ========================================
-
-  async signup(
-    email: string,
-    password: string,
-    name: string,
-    phone?: string,
-  ) {
-    const result = await this.request<any>("/auth/signup", {
-      method: "POST",
-      body: JSON.stringify({ email, password, name, phone }),
-    }, 0, false); // Don't cache auth requests
-
-    if (result.success && result.access_token) {
-      this.setUserToken(result.access_token);
-    }
-
-    return result;
-  }
-
-  async login(email: string, password: string) {
-    const result = await this.request<any>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    }, 0, false); // Don't cache auth requests
-
-    if (result.success && result.access_token) {
-      this.setUserToken(result.access_token);
-    }
-
-    return result;
-  }
-
-  async checkSession() {
-    return this.request<any>("/auth/session", {}, 0, false); // Don't cache auth checks
-  }
+  // Authentication handled via AuthContext using Supabase Auth directly
 
   // Clear cache (useful for admin or when data changes)
   clearCache() {
@@ -306,7 +269,7 @@ class UserAPI {
     };
 
     console.log(`[UserAPI] MOBILE MODE - POST /wallpapers/list`, body);
-    
+
     try {
       // 🔥 COLD START FIX: Warm up edge function with health check first
       console.log('[UserAPI] 🔥 Warming up edge function with health check...');
@@ -374,7 +337,7 @@ class UserAPI {
     } catch (error: any) {
       // REMOVED DEMO DATA FALLBACK - Show real error to admin
       console.error('[UserAPI] ❌ Failed to fetch wallpapers from admin backend:', error);
-      
+
       // Log detailed error for debugging
       console.error('[UserAPI] Error details:', {
         message: error.message,
@@ -382,7 +345,7 @@ class UserAPI {
         isAuthError: error.isAuthError,
         statusCode: error.statusCode
       });
-      
+
       // Return empty data with error indication
       // This will show "No content found" in user app
       return {
@@ -412,13 +375,13 @@ class UserAPI {
     // ✅ FIX: Use the ADMIN API endpoint with correct parameters
     // Admin backend: GET /api/media?mediaType=audio OR mediaType=video
     // We need to fetch BOTH audio and video, then filter in frontend
-    
+
     try {
       console.log('[UserAPI] Fetching media from admin backend...');
-      
+
       // Fetch ALL media (both audio and video)
       const result = await this.request<any>(`/api/media`, {}, 0, false); // Disable cache for fresh data
-      
+
       console.log('[UserAPI] Admin backend raw response:', {
         success: result.success,
         dataLength: result.data?.length || 0,
@@ -474,13 +437,13 @@ class UserAPI {
   ): Promise<{ data: SparkleArticle[]; pagination: any }> {
     // ✅ FIX: Use the ADMIN API endpoint with correct parameters
     // Admin backend: GET /api/sparkle?publishStatus=published
-    
+
     try {
       console.log('[UserAPI] Fetching sparkles from admin backend...');
-      
+
       // Fetch published sparkles only
       const result = await this.request<any>(`/api/sparkle?publishStatus=published`, {}, 0, false); // Disable cache for fresh data
-      
+
       console.log('[UserAPI] Admin backend raw response:', {
         success: result.success,
         dataLength: result.data?.length || 0,
@@ -530,7 +493,7 @@ class UserAPI {
   // Get or generate anonymous user ID
   private getAnonymousUserId(): string {
     if (typeof window === 'undefined') return 'server';
-    
+
     let userId = localStorage.getItem('murugan_anonymous_user_id');
     if (!userId) {
       // Generate unique anonymous ID
@@ -547,7 +510,7 @@ class UserAPI {
         method: "POST",
         body: JSON.stringify({ user_id }),
       }, 0, false); // Don't cache POST requests
-      
+
       // Return standardized response
       return {
         success: true,
@@ -571,7 +534,7 @@ class UserAPI {
         method: "POST",
         body: JSON.stringify({ user_id }),
       }, 0, false); // Don't cache POST requests
-      
+
       return {
         success: true,
         action: result.result?.action || 'unliked',
@@ -592,14 +555,14 @@ class UserAPI {
         method: "POST",
         body: JSON.stringify({ user_id }),
       }, 0, false); // Don't cache POST requests
-      
+
       // Clear the check-like cache for this media
       apiCache.delete(`/media/${mediaId}/check-like?user_id=${user_id}`);
-      
+
       // ✅ NEW: Clear wallpapers list cache to force refetch with updated counts
       // This ensures when user closes and reopens, they see the updated count
       apiCache.clearByPattern('/wallpapers/list');
-      
+
       return {
         success: true,
         action: result.result?.action || 'liked',
@@ -681,43 +644,43 @@ class UserAPI {
       publish_status: adminMedia.publish_status,
       visibility: adminMedia.visibility,
     });
-    
+
     if (!adminMedia.url && !adminMedia.storagePath && !adminMedia.storage_path && !adminMedia.imageUrl && !adminMedia.image_url && !adminMedia.originalUrl && !adminMedia.original_url && !adminMedia.video_url) {
       console.error('[UserAPI] ❌ Media missing ALL possible URL fields:', adminMedia);
     }
-    
+
     // Try ALL possible field name variations from different backends
     // For videos, prioritize video_url
     const imageUrl = adminMedia.video_url || // Video URL takes priority for videos
-                    adminMedia.url || 
-                    adminMedia.imageUrl ||
-                    adminMedia.image_url ||
-                    adminMedia.originalUrl ||
-                    adminMedia.original_url ||
-                    adminMedia.storagePath || 
-                    adminMedia.storage_path ||
-                    adminMedia.largeUrl ||
-                    adminMedia.large_url ||
-                    "";
-                    
-    const thumbUrl = adminMedia.thumbnail || 
-                    adminMedia.thumbnailUrl ||
-                    adminMedia.thumbnail_url ||
-                    adminMedia.smallUrl ||
-                    adminMedia.small_url ||
-                    adminMedia.mediumUrl ||
-                    adminMedia.medium_url ||
-                    imageUrl || // Fallback to main image
-                    "";
-    
+      adminMedia.url ||
+      adminMedia.imageUrl ||
+      adminMedia.image_url ||
+      adminMedia.originalUrl ||
+      adminMedia.original_url ||
+      adminMedia.storagePath ||
+      adminMedia.storage_path ||
+      adminMedia.largeUrl ||
+      adminMedia.large_url ||
+      "";
+
+    const thumbUrl = adminMedia.thumbnail ||
+      adminMedia.thumbnailUrl ||
+      adminMedia.thumbnail_url ||
+      adminMedia.smallUrl ||
+      adminMedia.small_url ||
+      adminMedia.mediumUrl ||
+      adminMedia.medium_url ||
+      imageUrl || // Fallback to main image
+      "";
+
     const result = {
       id: adminMedia.id,
       type:
         adminMedia.is_video || adminMedia.type === "video"
           ? "video"
           : adminMedia.type === "photo"
-          ? "image"
-          : "image",
+            ? "image"
+            : "image",
       is_video: adminMedia.is_video || false, // ✅ Add is_video field
       video_url: adminMedia.video_url || null, // ✅ Add video_url field
       title: adminMedia.title || "Untitled",
@@ -735,7 +698,7 @@ class UserAPI {
       downloads: adminMedia.stats?.downloads || adminMedia.download_count || adminMedia.downloads || 0,
       shares: adminMedia.stats?.shares || adminMedia.share_count || adminMedia.shares || 0,
     };
-    
+
     console.log('[UserAPI] ✅ Transformed result:', {
       id: result.id,
       title: result.title,
@@ -745,7 +708,7 @@ class UserAPI {
       video_url: result.video_url,
       thumbnail_url: result.thumbnail_url,
     });
-    
+
     return result;
   };
 
@@ -764,19 +727,19 @@ class UserAPI {
     });
 
     // Determine category: if media_type is audio → "songs", if video → "videos"
-    const category = adminMedia.media_type === 'audio' ? 'songs' : 
-                     adminMedia.media_type === 'video' ? 'videos' : 
-                     'uncategorized';
+    const category = adminMedia.media_type === 'audio' ? 'songs' :
+      adminMedia.media_type === 'video' ? 'videos' :
+        'uncategorized';
 
     // Use youtube_url if available, otherwise use file_url
     const embedUrl = adminMedia.youtube_url || adminMedia.file_url || '';
-    
+
     // Extract YouTube ID from URL
     const youtubeId = this.extractYouTubeId(embedUrl);
-    
+
     // Use provided thumbnail or generate from YouTube ID
-    const thumbnail = adminMedia.thumbnail_url || 
-                     (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg` : '');
+    const thumbnail = adminMedia.thumbnail_url ||
+      (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg` : '');
 
     return {
       id: adminMedia.id,
@@ -827,22 +790,22 @@ class UserAPI {
 
   private extractYouTubeId = (url: string): string => {
     if (!url) return "";
-    
+
     // Extract YouTube ID from various URL formats
     const watchPattern = /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/;
     const shortPattern = /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/;
     const embedPattern = /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/;
     const directIdPattern = /^([a-zA-Z0-9_-]{11})$/;
-    
+
     const patterns = [watchPattern, shortPattern, embedPattern, directIdPattern];
-    
+
     for (const pattern of patterns) {
       const match = url.match(pattern);
       if (match && match[1]) {
         return match[1];
       }
     }
-    
+
     return "";
   };
 }
