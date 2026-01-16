@@ -24,20 +24,20 @@ export interface MusicPlayerProps {
 const extractYouTubeId = (song: Song): string => {
   const urlOrId = song.youtubeId || song.embedUrl || song.id || '';
   if (!urlOrId) return '';
-  
+
   // If it's already just an ID (11 characters, alphanumeric)
   if (/^[a-zA-Z0-9_-]{11}$/.test(urlOrId)) return urlOrId;
-  
+
   // Extract from various YouTube URL formats
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
   ];
-  
+
   for (const pattern of patterns) {
     const match = urlOrId.match(pattern);
     if (match) return match[1];
   }
-  
+
   return '';
 };
 
@@ -115,7 +115,7 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
 
     try {
       console.log('[MusicPlayer] Initializing player with ID:', currentYouTubeId);
-      
+
       playerRef.current = new (window as any).YT.Player('youtube-player-frame', {
         height: '0',
         width: '0',
@@ -142,7 +142,7 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
     console.log('[MusicPlayer] Player ready');
     setIsPlayerReady(true);
     setDuration(event.target.getDuration());
-    
+
     if (autoPlay) {
       event.target.playVideo();
       setIsPlaying(true);
@@ -164,7 +164,7 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
   const onPlayerStateChange = (event: any) => {
     const state = event.data;
     console.log('[MusicPlayer] State change:', state);
-    
+
     // YT.PlayerState: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (cued)
     if (state === 1) {
       setIsPlaying(true);
@@ -185,7 +185,7 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
 
   const togglePlay = () => {
     if (!playerRef.current || !isPlayerReady) return;
-    
+
     try {
       if (isPlaying) {
         playerRef.current.pauseVideo();
@@ -208,7 +208,7 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
     }
 
     let nextIndex = currentIndex + 1;
-    
+
     if (nextIndex >= songs.length) {
       if (repeat === 'all') {
         nextIndex = 0;
@@ -217,7 +217,7 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
         return;
       }
     }
-    
+
     setCurrentIndex(nextIndex);
   };
 
@@ -231,11 +231,11 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
     }
 
     let prevIndex = currentIndex - 1;
-    
+
     if (prevIndex < 0) {
       prevIndex = repeat === 'all' ? songs.length - 1 : 0;
     }
-    
+
     setCurrentIndex(prevIndex);
   };
 
@@ -287,7 +287,10 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
       {isExpanded && (
         <div className="fixed inset-0 bg-black text-white z-[100] animate-fade-in flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div
+            className="flex items-center justify-between p-4 border-b border-white/10"
+            style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+          >
             <button
               onClick={() => setIsExpanded(false)}
               className="p-2 hover:bg-white/10 rounded-full transition-colors"
@@ -336,7 +339,7 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
               {/* Progress Bar */}
               <div className="w-full max-w-md mb-2">
                 <div className="w-full h-1.5 bg-white/20 rounded-full relative">
-                  <div 
+                  <div
                     className="h-full bg-white rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
@@ -359,9 +362,8 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
               <div className="flex items-center justify-center gap-4 sm:gap-6 mb-6 w-full max-w-md">
                 <button
                   onClick={toggleShuffle}
-                  className={`p-3 rounded-full hover:bg-white/10 transition-colors ${
-                    shuffle ? 'text-[#0d5e38]' : 'text-white/60'
-                  }`}
+                  className={`p-3 rounded-full hover:bg-white/10 transition-colors ${shuffle ? 'text-[#0d5e38]' : 'text-white/60'
+                    }`}
                   title="Shuffle"
                 >
                   <Shuffle className="w-5 h-5" />
@@ -398,9 +400,8 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
 
                 <button
                   onClick={toggleRepeat}
-                  className={`p-3 rounded-full hover:bg-white/10 transition-colors relative ${
-                    repeat !== 'none' ? 'text-[#0d5e38]' : 'text-white/60'
-                  }`}
+                  className={`p-3 rounded-full hover:bg-white/10 transition-colors relative ${repeat !== 'none' ? 'text-[#0d5e38]' : 'text-white/60'
+                    }`}
                   title={`Repeat: ${repeat}`}
                 >
                   <Repeat className="w-5 h-5" />
@@ -429,11 +430,10 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
                       <button
                         key={song.id}
                         onClick={() => selectSong(index)}
-                        className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
-                          index === currentIndex
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left ${index === currentIndex
                             ? 'bg-white/20'
                             : 'hover:bg-white/10'
-                        }`}
+                          }`}
                       >
                         <span className="text-sm font-semibold min-w-[24px] text-white/60">
                           {index + 1}
@@ -475,14 +475,14 @@ export function MusicPlayer({ songs, autoPlay = false, onClose }: MusicPlayerPro
         <div className="fixed bottom-0 left-0 right-0 bg-black text-white shadow-2xl z-50 border-t border-white/10">
           {/* Thin Progress Bar */}
           <div className="w-full h-1 bg-white/20 relative">
-            <div 
+            <div
               className="h-full bg-white transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
 
           {/* Mini Player Content */}
-          <div 
+          <div
             className="px-3 py-2.5 sm:px-4 sm:py-3 cursor-pointer hover:bg-white/5 transition-colors"
             onClick={() => setIsExpanded(true)}
           >

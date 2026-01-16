@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw, BarChart3, FolderInput, Settings, CheckSquare, Square, Grid3x3, List, Calendar as CalendarIcon, Clock, MousePointer } from "lucide-react";
+import { format } from "date-fns";
 import { toast } from "sonner";
-import { UploadModal } from "./UploadModal";
+import { AddBannerModal } from "./AddBannerModal";
 import { DatabaseSetupGuide } from "./DatabaseSetupGuide";
 import { BannerDatabaseChecker } from "./BannerDatabaseChecker";
 import { FolderDropdown } from "./FolderDropdown";
@@ -13,6 +14,8 @@ import { BannerAnalyticsDrawer } from "./BannerAnalyticsDrawer";
 import { DateRangeFilter, DateRangePreset } from "./DateRangeFilter";
 import * as adminAPI from "../../utils/adminAPI";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
+import { optimizeSupabaseUrl } from "../../utils/imageHelper";
+import { subscribeToBannerChanges, unsubscribeFromBannerChanges } from "../../utils/bannerAPI";
 
 interface Banner {
   id: string;
@@ -51,7 +54,7 @@ export function AdminBannerManager() {
   const [activeTab, setActiveTab] = useState<"published" | "scheduled" | "draft">("published");
   const [showDatabaseSetup, setShowDatabaseSetup] = useState(false);
   const [showFoldersSetup, setShowFoldersSetup] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("card");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // Date range filter for analytics
@@ -62,7 +65,7 @@ export function AdminBannerManager() {
   });
   const [endDate, setEndDate] = useState<Date | null>(() => new Date());
   const [datePreset, setDatePreset] = useState<DateRangePreset>("month");
-  
+
   // Aggregate analytics for the date range
   const [aggregateAnalytics, setAggregateAnalytics] = useState<{
     total_views: number;
@@ -88,40 +91,40 @@ export function AdminBannerManager() {
     try {
       setIsLoading(true);
       console.log('[AdminBannerManager] Starting to load banners...');
-      
+
       // Always load ALL banners - filtering is done client-side
       const result = await adminAPI.getBanners();
-      
+
       console.log("[AdminBannerManager] Loaded banners:", result);
-      
+
       setBanners(result.data || []);
-      
+
       if ((result.data || []).length === 0 && !selectedFolder) {
         toast.info("No banners found. Upload your first banner!");
       }
-      
+
       // Hide database setup if data loaded successfully
       setShowDatabaseSetup(false);
     } catch (error: any) {
       console.error("[AdminBannerManager] Load error:", error);
-      
+
       // Show database setup guide if error indicates missing tables
       if (
-        error.message.includes("Failed to fetch") || 
-        error.message.includes("500") || 
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("500") ||
         error.message.includes("relation") ||
         error.message.includes("schema cache") ||
         error.message.includes("Could not find the table")
       ) {
         setShowDatabaseSetup(true);
       }
-      
+
       // Show detailed error message
       toast.error("Database tables not found", {
         duration: 8000,
         description: "Please follow the setup guide above to create the database tables.",
       });
-      
+
       // Set empty array so UI doesn't break
       setBanners([]);
     } finally {
@@ -138,12 +141,12 @@ export function AdminBannerManager() {
 
     // Validate dates are valid Date objects
     if (!(startDate instanceof Date) || isNaN(startDate.getTime()) ||
-        !(endDate instanceof Date) || isNaN(endDate.getTime())) {
+      !(endDate instanceof Date) || isNaN(endDate.getTime())) {
       console.error('[AdminBannerManager] Invalid date objects:', { startDate, endDate });
       setAggregateAnalytics(null);
       return;
     }
-    
+
     try {
       console.log('[AdminBannerManager] Loading aggregate analytics for date range:', {
         start: startDate.toISOString(),
@@ -155,7 +158,7 @@ export function AdminBannerManager() {
         end_date: endDate.toISOString(),
         content_type: 'banner',
       });
-      
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/analytics/aggregate?${params}`,
         {
@@ -164,13 +167,13 @@ export function AdminBannerManager() {
           },
         }
       );
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const result = await response.json();
-      
+
       if (result.success && result.data) {
         console.log('[AdminBannerManager] Aggregate analytics loaded:', result.data);
         setAggregateAnalytics(result.data);
@@ -197,7 +200,7 @@ export function AdminBannerManager() {
         }
       );
       const result = await response.json();
-      
+
       // Check if response indicates missing tables
       if (!response.ok || result.code === 'PGRST205' || result.message?.includes('schema cache')) {
         console.log('[Banner Folders] Tables not set up yet - folder features will be hidden');
@@ -205,7 +208,7 @@ export function AdminBannerManager() {
         setFolders([]); // Empty folders - hide sidebar
         return;
       }
-      
+
       if (result.success) {
         // Calculate banner counts for each folder from loaded banners
         const foldersWithCounts = (result.data || []).map((folder: any) => ({
@@ -245,17 +248,17 @@ export function AdminBannerManager() {
         }
       );
       const result = await response.json();
-      
+
       // Check if response indicates missing tables
       if (!response.ok || result.code === 'PGRST205' || result.message?.includes('schema cache')) {
         setShowFoldersSetup(true);
         throw new Error('Please set up the database tables first. See the orange banner above for instructions.');
       }
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to create folder');
       }
-      
+
       // Reload folders
       await loadFolders();
     } catch (error: any) {
@@ -282,7 +285,7 @@ export function AdminBannerManager() {
     );
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'Failed to update folder');
-    
+
     await loadFolders();
   };
 
@@ -299,12 +302,12 @@ export function AdminBannerManager() {
     );
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'Failed to delete folder');
-    
+
     // Clear selection if deleted folder was selected
     if (selectedFolder === folderId) {
       setSelectedFolder(null);
     }
-    
+
     await loadFolders();
   };
 
@@ -352,7 +355,7 @@ export function AdminBannerManager() {
       );
 
       await Promise.all(promises);
-      
+
       toast.success(`Moved ${selectedBanners.size} banner(s) to folder`);
       setShowMoveToFolderModal(false);
       setSelectedBanners(new Set());
@@ -382,7 +385,7 @@ export function AdminBannerManager() {
       );
 
       await Promise.all(promises);
-      
+
       toast.success(`Deleted ${selectedBanners.size} banner(s)`);
       setSelectedBanners(new Set());
       loadBanners();
@@ -400,12 +403,12 @@ export function AdminBannerManager() {
     if (activeTab === "published") {
       filtered = filtered.filter(b => b.publish_status === "published");
     } else if (activeTab === "scheduled") {
-      filtered = filtered.filter(b => 
+      filtered = filtered.filter(b =>
         b.publish_status === "scheduled" && b.scheduled_at
       );
     } else if (activeTab === "draft") {
-      filtered = filtered.filter(b => 
-        b.publish_status === "draft" || 
+      filtered = filtered.filter(b =>
+        b.publish_status === "draft" ||
         (b.publish_status === "scheduled" && !b.scheduled_at)
       );
     }
@@ -432,10 +435,31 @@ export function AdminBannerManager() {
     loadAggregateAnalytics();
   }, [startDate, endDate]);
 
+  // Subscribe to real-time banner changes
+  useEffect(() => {
+    // Set up Supabase Realtime subscription
+    subscribeToBannerChanges();
+
+    // Listen for custom bannersUpdated event
+    const handleBannerUpdate = () => {
+      console.log("[AdminBannerManager] Banners updated - reloading...");
+      loadBanners();
+    };
+
+    window.addEventListener('bannersUpdated', handleBannerUpdate);
+
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener('bannersUpdated', handleBannerUpdate);
+      unsubscribeFromBannerChanges();
+    };
+  }, []);
+
+
   const handleTogglePublish = async (banner: Banner) => {
     try {
       const newStatus = banner.publish_status === "published" ? "draft" : "published";
-      
+
       await adminAPI.updateBanner(banner.id, {
         publish_status: newStatus,
       });
@@ -445,6 +469,30 @@ export function AdminBannerManager() {
     } catch (error: any) {
       toast.error("Failed to update banner: " + error.message);
     }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes || bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const getCompressionInfo = (banner: any) => {
+    const meta = banner.metadata || {};
+    const original = meta.original_size || banner.original_size_bytes;
+    const optimized = meta.optimized_size || banner.optimized_size_bytes;
+
+    if (!original) return null;
+
+    const ratio = original > 0 ? Math.round((1 - optimized / original) * 100) : 0;
+
+    return {
+      original: formatBytes(original),
+      optimized: formatBytes(optimized),
+      ratio: ratio > 0 ? `-${ratio}%` : "0%"
+    };
   };
 
   const handleDelete = async (banner: Banner) => {
@@ -480,13 +528,13 @@ export function AdminBannerManager() {
         bannerId,
         newDate: newDate.toISOString(),
       });
-      
+
       const result = await adminAPI.updateBanner(bannerId, {
         scheduled_at: newDate.toISOString(),
       });
-      
+
       console.log('[AdminBannerManager] Reschedule response:', result);
-      
+
       toast.success("Banner rescheduled successfully");
       await loadBanners();
     } catch (error: any) {
@@ -515,12 +563,12 @@ export function AdminBannerManager() {
   };
 
   const filteredBanners = getFilteredBanners();
-  
+
   // Calculate accurate tab counts
   const publishedCount = banners.filter(b => b.publish_status === "published").length;
   const scheduledCount = banners.filter(b => b.publish_status === "scheduled" && b.scheduled_at).length;
-  const draftCount = banners.filter(b => 
-    b.publish_status === "draft" || 
+  const draftCount = banners.filter(b =>
+    b.publish_status === "draft" ||
     (b.publish_status === "scheduled" && !b.scheduled_at)
   ).length;
   const uncategorizedCount = banners.filter(b => !b.folder_id).length;
@@ -529,9 +577,9 @@ export function AdminBannerManager() {
     <div className="space-y-6 text-inter-regular-14">
       {/* Database Setup Guide - Show prominently at top when tables missing */}
       {showDatabaseSetup && <DatabaseSetupGuide />}
-      
+
       {/* Folders Setup Guide - Show when folder tables are missing */}
-      {showFoldersSetup && <FoldersSetupGuide contentType="banner" />}
+      {showFoldersSetup && <FoldersSetupGuide contentType="banners" />}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -550,7 +598,7 @@ export function AdminBannerManager() {
               setDatePreset(preset);
             }}
           />
-          
+
           {/* Diagnostics Button (Settings Icon) */}
           <button
             onClick={() => setShowDiagnostics(!showDiagnostics)}
@@ -559,7 +607,7 @@ export function AdminBannerManager() {
           >
             <Settings className="w-5 h-5" />
           </button>
-          
+
           <button
             onClick={() => {
               loadBanners();
@@ -693,33 +741,30 @@ export function AdminBannerManager() {
             <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5">
               <button
                 onClick={() => setActiveTab("published")}
-                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${
-                  activeTab === "published"
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${activeTab === "published"
+                  ? "bg-green-600 text-white shadow-sm"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 <Eye className="w-4 h-4 inline mr-1.5" />
                 Published ({publishedCount})
               </button>
               <button
                 onClick={() => setActiveTab("scheduled")}
-                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${
-                  activeTab === "scheduled"
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${activeTab === "scheduled"
+                  ? "bg-green-600 text-white shadow-sm"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 <Clock className="w-4 h-4 inline mr-1.5" />
                 Scheduled ({scheduledCount})
               </button>
               <button
                 onClick={() => setActiveTab("draft")}
-                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${
-                  activeTab === "draft"
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${activeTab === "draft"
+                  ? "bg-green-600 text-white shadow-sm"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 <EyeOff className="w-4 h-4 inline mr-1.5" />
                 Drafts ({draftCount})
@@ -738,27 +783,25 @@ export function AdminBannerManager() {
                   Select All
                 </button>
               )}
-              
+
               {/* View Mode Toggle */}
               <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5">
                 <button
                   onClick={() => setViewMode("card")}
-                  className={`p-1.5 rounded transition-colors ${
-                    viewMode === "card"
-                      ? "bg-green-600 text-white"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
+                  className={`p-1.5 rounded transition-colors ${viewMode === "card"
+                    ? "bg-green-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                    }`}
                   title="Card View"
                 >
                   <Grid3x3 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewMode("list")}
-                  className={`p-1.5 rounded transition-colors ${
-                    viewMode === "list"
-                      ? "bg-green-600 text-white"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
+                  className={`p-1.5 rounded transition-colors ${viewMode === "list"
+                    ? "bg-green-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                    }`}
                   title="List View"
                 >
                   <List className="w-4 h-4" />
@@ -834,14 +877,13 @@ export function AdminBannerManager() {
               {filteredBanners.map((banner) => (
                 <div
                   key={banner.id}
-                  className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden hover:shadow-md transition-all ${
-                    selectedBanners.has(banner.id) ? "border-green-500 ring-2 ring-green-200" : "border-gray-200"
-                  }`}
+                  className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden hover:shadow-md transition-all ${selectedBanners.has(banner.id) ? "border-green-500 ring-2 ring-green-200" : "border-gray-200"
+                    }`}
                 >
                   {/* Image */}
                   <div className="relative aspect-[16/9] bg-gray-100">
                     <img
-                      src={banner.thumbnail_url || banner.medium_url || banner.image_url}
+                      src={optimizeSupabaseUrl(banner.thumbnail_url || banner.medium_url || banner.image_url)}
                       alt={banner.title}
                       className="w-full h-full object-cover"
                     />
@@ -851,8 +893,10 @@ export function AdminBannerManager() {
                         onClick={() => toggleBannerSelection(banner.id)}
                         className="w-6 h-6 rounded bg-white border-2 border-gray-300 flex items-center justify-center hover:border-green-500 transition-colors"
                       >
-                        {selectedBanners.has(banner.id) && (
+                        {selectedBanners.has(banner.id) ? (
                           <CheckSquare className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <Square className="w-5 h-5 text-gray-400" />
                         )}
                       </button>
                     </div>
@@ -862,13 +906,12 @@ export function AdminBannerManager() {
                         <CountdownTimerBadge scheduledAt={banner.scheduled_at} />
                       ) : (
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium text-inter-medium-16 ${
-                            banner.publish_status === "published"
-                              ? "bg-green-100 text-green-700"
-                              : banner.publish_status === "scheduled"
+                          className={`px-3 py-1 rounded-full text-xs font-medium text-inter-medium-16 ${banner.publish_status === "published"
+                            ? "bg-green-100 text-green-700"
+                            : banner.publish_status === "scheduled"
                               ? "bg-blue-100 text-blue-700"
                               : "bg-yellow-100 text-yellow-700"
-                          }`}
+                            }`}
                         >
                           {banner.publish_status}
                         </span>
@@ -942,11 +985,10 @@ export function AdminBannerManager() {
                       ) : (
                         <button
                           onClick={() => handleTogglePublish(banner)}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors text-inter-medium-16 ${
-                            banner.publish_status === "published"
-                              ? "border-yellow-300 text-yellow-700 hover:bg-yellow-50"
-                              : "border-green-300 text-green-700 hover:bg-green-50"
-                          }`}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors text-inter-medium-16 ${banner.publish_status === "published"
+                            ? "border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+                            : "border-green-300 text-green-700 hover:bg-green-50"
+                            }`}
                         >
                           {banner.publish_status === "published" ? (
                             <>
@@ -974,7 +1016,7 @@ export function AdminBannerManager() {
             </div>
           ) : (
             // List View
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -1005,6 +1047,9 @@ export function AdminBannerManager() {
                       CLICKS
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      COMPRESSION
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       CREATED
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1016,9 +1061,8 @@ export function AdminBannerManager() {
                   {filteredBanners.map((banner) => (
                     <tr
                       key={banner.id}
-                      className={`hover:bg-gray-50 transition-colors ${
-                        selectedBanners.has(banner.id) ? "bg-green-50" : ""
-                      }`}
+                      className={`hover:bg-gray-50 transition-colors ${selectedBanners.has(banner.id) ? "bg-green-50" : ""
+                        }`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <input
@@ -1031,12 +1075,12 @@ export function AdminBannerManager() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <img
-                            src={banner.thumbnail_url || banner.medium_url || banner.image_url}
+                            src={optimizeSupabaseUrl(banner.thumbnail_url || banner.medium_url || banner.image_url)}
                             alt={banner.title}
                             className="w-16 h-10 object-cover rounded"
                           />
                           <div>
-                            <div className="font-medium text-gray-900 text-inter-medium-16">{banner.title}</div>
+                            <div className="font-medium text-gray-900 text-inter-medium-16 line-clamp-1">{banner.title}</div>
                             {banner.description && (
                               <div className="text-sm text-gray-500 line-clamp-1 text-inter-regular-14">
                                 {banner.description}
@@ -1050,13 +1094,12 @@ export function AdminBannerManager() {
                           <CountdownTimerBadge scheduledAt={banner.scheduled_at} compact />
                         ) : (
                           <span
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium inline-block ${
-                              banner.publish_status === "published"
-                                ? "bg-green-100 text-green-700"
-                                : banner.publish_status === "scheduled"
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium inline-block ${banner.publish_status === "published"
+                              ? "bg-green-100 text-green-700"
+                              : banner.publish_status === "scheduled"
                                 ? "bg-blue-100 text-blue-700"
                                 : "bg-yellow-100 text-yellow-700"
-                            }`}
+                              }`}
                           >
                             {banner.publish_status}
                           </span>
@@ -1067,6 +1110,18 @@ export function AdminBannerManager() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-inter-regular-14">
                         {banner.click_count || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getCompressionInfo(banner) ? (
+                          <div className="flex flex-col text-xs text-inter-regular-14">
+                            <span className="text-gray-900">{getCompressionInfo(banner)!.optimized}</span>
+                            <span className="text-green-600 text-[10px] font-medium">
+                              Saved {getCompressionInfo(banner)!.ratio}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 text-inter-regular-14">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-inter-regular-14">
                         {new Date(banner.created_at).toLocaleDateString()}
@@ -1118,13 +1173,12 @@ export function AdminBannerManager() {
       )}
 
       {/* Upload Modal */}
-      <UploadModal
+      <AddBannerModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onSuccess={loadBanners}
-        title="Banner"
-        uploadType="banner"
-        uploadFunction={adminAPI.uploadBanner}
+        folders={showFoldersSetup ? [] : folders}
+        onCreateFolder={createFolder}
       />
 
       {/* Reschedule Dialog */}
@@ -1132,8 +1186,8 @@ export function AdminBannerManager() {
         <RescheduleDialog
           isOpen={!!rescheduleBanner}
           onClose={() => setRescheduleBanner(null)}
-          onReschedule={(newDate) => {
-            handleReschedule(rescheduleBanner.id, newDate);
+          onReschedule={async (newDate) => {
+            await handleReschedule(rescheduleBanner.id, newDate);
             setRescheduleBanner(null);
           }}
           currentDate={rescheduleBanner.scheduled_at ? new Date(rescheduleBanner.scheduled_at) : new Date()}
@@ -1188,7 +1242,7 @@ export function AdminBannerManager() {
           setIsAnalyticsOpen(false);
           setAnalyticsBannerId(null);
         }}
-        bannerId={analyticsBannerId}
+        bannerId={analyticsBannerId || ""}
       />
     </div>
   );

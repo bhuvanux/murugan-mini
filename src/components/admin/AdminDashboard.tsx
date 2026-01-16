@@ -20,7 +20,10 @@ import {
   ChevronRight,
   BarChart3,
   Menu,
+  Download,
+  LogOut,
 } from "lucide-react";
+import { useAdminAuth } from "../../contexts/AdminAuthContext";
 import { AdminDashboardHome } from "./AdminDashboardHome";
 import { AdminMediaManager } from "./AdminMediaManager";
 import { AdminWallpaperManager } from "./AdminWallpaperManager";
@@ -38,7 +41,10 @@ import { AnalyticsSetupGuide } from "./AnalyticsSetupGuide";
 import AdminAnalyticsUnified from "./AdminAnalyticsUnified";
 import AnalyticsTestSuite from "./AnalyticsTestSuite";
 import AnalyticsInstallationGuide from "./AnalyticsInstallationGuide";
+import { AdminInstallAnalytics } from "./AdminInstallAnalytics";
 import TrackingSystemPage from "../../pages/TrackingSystemPage";
+import { AdminNotificationManager } from "./AdminNotificationManager";
+import { AnalyticsQueryManager } from "./AnalyticsQueryManager";
 
 type AdminView =
   | "dashboard"
@@ -54,19 +60,30 @@ type AdminView =
   | "analytics-unified"
   | "analytics-test-suite"
   | "analytics-install"
+  | "analytics-query-manager"
   | "tracking-system"
   | "users"
   | "subscriptions"
+  | "subscriptions"
   | "storage"
+  | "notifications"
   | "settings";
 
 export function AdminDashboard() {
+  const { signOutAdmin, adminUser } = useAdminAuth();
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
+  const [activeQueryId, setActiveQueryId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isAnalyticsExpanded, setIsAnalyticsExpanded] = useState(false);
+
+  const handleLogout = async () => {
+    await signOutAdmin();
+    setShowProfileDropdown(false);
+  };
 
   // Auto-expand Analytics Manager if any analytics sub-item is active
   React.useEffect(() => {
@@ -82,33 +99,44 @@ export function AdminDashboard() {
     { id: "wallpapers" as AdminView, label: "Wallpapers", icon: Image },
     { id: "media" as AdminView, label: "Media", icon: Music },
     { id: "sparkle" as AdminView, label: "Sparkle", icon: Sparkles },
-    { id: "ai-analytics" as AdminView, label: "AI Analytics", icon: MessageCircle },
+    // { id: "ai-analytics" as AdminView, label: "AI Analytics", icon: MessageCircle },
     { id: "users" as AdminView, label: "Users", icon: Users },
     { id: "subscriptions" as AdminView, label: "Subscriptions", icon: CreditCard },
     { id: "storage" as AdminView, label: "Storage", icon: Database },
+    { id: "notifications" as AdminView, label: "Notifications", icon: Bell },
     { id: "settings" as AdminView, label: "Settings", icon: Settings },
   ];
 
   // Analytics sub-menu items (under Analytics Manager)
+  const analyticsSubMenuItems = [
+    { id: "analytics-query-manager" as AdminView, label: "Query Manager", icon: BarChart3 },
+  ];
+  /*
   const analyticsSubMenuItems = [
     { id: "analytics-setup" as AdminView, label: "Analytics Setup", icon: Settings },
     { id: "analytics-center" as AdminView, label: "Analytics Center", icon: BarChart3 },
     { id: "analytics-testing" as AdminView, label: "Analytics Testing", icon: BarChart3 },
     { id: "analytics-unified" as AdminView, label: "Analytics Unified", icon: BarChart3 },
     { id: "analytics-test-suite" as AdminView, label: "Analytics Test Suite", icon: BarChart3 },
-    { id: "analytics-install" as AdminView, label: "Analytics Install", icon: BarChart3 },
+    { id: "analytics-install" as AdminView, label: "Install Analytics", icon: Download },
     { id: "tracking-system" as AdminView, label: "Tracking System", icon: BarChart3 },
   ];
+  */
 
   const menuItems = [
     ...mainMenuItems,
     ...analyticsSubMenuItems,
   ];
 
+  const handleNavigate = (view: AdminView, queryId?: string) => {
+    setActiveView(view);
+    setActiveQueryId(queryId);
+  };
+
   const renderContent = () => {
     switch (activeView) {
       case "dashboard":
-        return <AdminDashboardHome />;
+        return <AdminDashboardHome onNavigate={handleNavigate} />;
       case "banners":
         return <AdminBannerManager />;
       case "wallpapers":
@@ -130,29 +158,32 @@ export function AdminDashboard() {
       case "analytics-test-suite":
         return <AnalyticsTestSuite />;
       case "analytics-install":
-        return <AnalyticsInstallationGuide />;
+        return <AdminInstallAnalytics />;
       case "tracking-system":
         return <TrackingSystemPage />;
+      case "analytics-query-manager":
+        return <AnalyticsQueryManager initialQueryId={activeQueryId} />;
       case "users":
         return <AdminUserManagement />;
       case "subscriptions":
         return <AdminSubscriptions />;
       case "storage":
         return <AdminStorageMonitor />;
+      case "notifications":
+        return <AdminNotificationManager />;
       case "settings":
         return <AdminSettings />;
       default:
-        return <AdminDashboardHome />;
+        return <AdminDashboardHome onNavigate={handleNavigate} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="h-screen bg-gray-50 flex overflow-hidden">
       {/* LEFT SIDEBAR */}
       <aside
-        className={`${
-          isSidebarCollapsed ? "w-20" : "w-64"
-        } bg-gradient-to-b from-green-800 to-green-900 shadow-xl fixed left-0 top-0 bottom-0 overflow-y-auto transition-all duration-300`}
+        className={`${isSidebarCollapsed ? "w-20" : "w-64"
+          } bg-gradient-to-b from-green-800 to-green-900 shadow-xl flex flex-col overflow-hidden transition-all duration-300 flex-shrink-0 z-50`}
       >
         {/* Logo & Brand */}
         <div className="p-6 border-b border-white/10">
@@ -195,7 +226,7 @@ export function AdminDashboard() {
         </div>
 
         {/* Navigation Menu */}
-        <nav className="p-4 space-y-1 pb-24">
+        <nav className="flex-1 overflow-y-auto p-4 space-y-1 pb-24">
           {/* Render items before Analytics Manager */}
           {mainMenuItems.slice(0, 6).map((item) => {
             const Icon = item.icon;
@@ -205,11 +236,10 @@ export function AdminDashboard() {
                 key={item.id}
                 onClick={() => setActiveView(item.id)}
                 title={isSidebarCollapsed ? item.label : undefined}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${
-                  isActive
-                    ? "bg-white/20 text-white shadow-lg"
-                    : "text-green-100 hover:bg-white/10 hover:text-white"
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${isActive
+                  ? "bg-white/20 text-white shadow-lg"
+                  : "text-green-100 hover:bg-white/10 hover:text-white"
+                  }`}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
                 {!isSidebarCollapsed && (
@@ -220,7 +250,7 @@ export function AdminDashboard() {
                     )}
                   </>
                 )}
-                
+
                 {/* Tooltip on collapsed */}
                 {isSidebarCollapsed && (
                   <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
@@ -228,7 +258,7 @@ export function AdminDashboard() {
                     <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-r-4 border-r-gray-900" />
                   </div>
                 )}
-                
+
                 {isActive && isSidebarCollapsed && (
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-yellow-400 rounded-r-full" />
                 )}
@@ -241,11 +271,10 @@ export function AdminDashboard() {
             <button
               onClick={() => setIsAnalyticsExpanded(!isAnalyticsExpanded)}
               title={isSidebarCollapsed ? "Analytics Manager" : undefined}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${
-                analyticsSubMenuItems.some(item => item.id === activeView)
-                  ? "bg-white/20 text-white shadow-lg"
-                  : "text-green-100 hover:bg-white/10 hover:text-white"
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${analyticsSubMenuItems.some(item => item.id === activeView)
+                ? "bg-white/20 text-white shadow-lg"
+                : "text-green-100 hover:bg-white/10 hover:text-white"
+                }`}
             >
               <BarChart3 className="w-5 h-5 flex-shrink-0" />
               {!isSidebarCollapsed && (
@@ -258,7 +287,7 @@ export function AdminDashboard() {
                   )}
                 </>
               )}
-              
+
               {/* Tooltip on collapsed */}
               {isSidebarCollapsed && (
                 <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
@@ -266,7 +295,7 @@ export function AdminDashboard() {
                   <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-r-4 border-r-gray-900" />
                 </div>
               )}
-              
+
               {analyticsSubMenuItems.some(item => item.id === activeView) && isSidebarCollapsed && (
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-yellow-400 rounded-r-full" />
               )}
@@ -282,11 +311,10 @@ export function AdminDashboard() {
                     <button
                       key={item.id}
                       onClick={() => setActiveView(item.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
-                        isActive
-                          ? "bg-white/20 text-white"
-                          : "text-green-100 hover:bg-white/10 hover:text-white"
-                      }`}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${isActive
+                        ? "bg-white/20 text-white"
+                        : "text-green-100 hover:bg-white/10 hover:text-white"
+                        }`}
                     >
                       <Icon className="w-4 h-4 flex-shrink-0" />
                       <span className="text-sm">{item.label}</span>
@@ -309,11 +337,10 @@ export function AdminDashboard() {
                 key={item.id}
                 onClick={() => setActiveView(item.id)}
                 title={isSidebarCollapsed ? item.label : undefined}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${
-                  isActive
-                    ? "bg-white/20 text-white shadow-lg"
-                    : "text-green-100 hover:bg-white/10 hover:text-white"
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative group ${isActive
+                  ? "bg-white/20 text-white shadow-lg"
+                  : "text-green-100 hover:bg-white/10 hover:text-white"
+                  }`}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
                 {!isSidebarCollapsed && (
@@ -324,7 +351,7 @@ export function AdminDashboard() {
                     )}
                   </>
                 )}
-                
+
                 {/* Tooltip on collapsed */}
                 {isSidebarCollapsed && (
                   <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
@@ -332,7 +359,7 @@ export function AdminDashboard() {
                     <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-r-4 border-r-gray-900" />
                   </div>
                 )}
-                
+
                 {isActive && isSidebarCollapsed && (
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-yellow-400 rounded-r-full" />
                 )}
@@ -342,7 +369,7 @@ export function AdminDashboard() {
         </nav>
 
         {/* Sync Status at Bottom - Fixed Position */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10 bg-green-900/90">
+        <div className="flex-shrink-0 p-4 border-t border-white/10 bg-green-900/90">
           {!isSidebarCollapsed ? (
             <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
@@ -357,11 +384,8 @@ export function AdminDashboard() {
       </aside>
 
       {/* RIGHT CONTENT AREA */}
-      <div
-        className={`flex-1 transition-all duration-300 ${
-          isSidebarCollapsed ? "ml-20" : "ml-64"
-        }`}
-      >
+      <div className="flex-1 flex flex-col overflow-hidden">
+
         {/* TOP HEADER */}
         <header className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
           <div className="flex items-center justify-between px-6 h-16">
@@ -405,17 +429,54 @@ export function AdminDashboard() {
                 <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
               </button>
 
-              {/* Admin Profile */}
-              <button className="flex items-center gap-3 hover:bg-gray-100 rounded-lg px-3 py-2 transition-colors">
-                <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <span className="text-green-900 font-bold text-sm">A</span>
-                </div>
-                <div className="text-left">
-                  <p className="text-gray-800 text-sm font-medium">Admin User</p>
-                  <p className="text-gray-500 text-xs">admin@murugan.app</p>
-                </div>
-                <ChevronDown className="w-4 h-4 text-gray-400" />
-              </button>
+              {/* Admin Profile with Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                  className="flex items-center gap-3 hover:bg-gray-100 rounded-lg px-3 py-2 transition-colors"
+                >
+                  <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
+                    <span className="text-green-900 font-bold text-sm">A</span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-gray-800 text-sm font-medium">Admin User</p>
+                    <p className="text-gray-500 text-xs truncate max-w-[120px]">
+                      {adminUser?.email || 'admin@murugan.app'}
+                    </p>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                </button>
+
+                {/* Profile Dropdown */}
+                {showProfileDropdown && (
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                    <div className="p-4 border-b border-gray-200">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {adminUser?.email?.split('@')[0] || 'Admin'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {adminUser?.email || 'admin@murugan.app'}
+                      </p>
+                    </div>
+                    <div className="p-2">
+                      <button
+                        onClick={() => setActiveView('settings')}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 rounded-lg transition-colors"
+                      >
+                        <Settings className="w-4 h-4 text-gray-600" />
+                        <span className="text-sm text-gray-700">Settings</span>
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-red-50 rounded-lg transition-colors text-red-600"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span className="text-sm font-medium">Sign Out</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -468,10 +529,10 @@ export function AdminDashboard() {
         )}
 
         {/* Main Content Area */}
-        <main className="p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-[1600px] mx-auto">{renderContent()}</div>
         </main>
       </div>
-    </div>
+    </div >
   );
 }

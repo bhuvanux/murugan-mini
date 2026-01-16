@@ -1,6 +1,6 @@
 {
-    "appId": "com.murugan.ai",
-    "appName": "Murugan AI",
+    "appId": "com.tamilkadavulmurugan.app",
+    "appName": "Tamil Kadavul Murugan",
     "webDir": "build",
     "plugins": {
         "SplashScreen": {
@@ -11,6 +11,14 @@
             "androidScaleType": "FIT_CENTER",
             "splashFullScreen": true,
             "splashImmersive": true
+        },
+        "StatusBar": {
+            "backgroundColor": "#0d5e38",
+            "style": "LIGHT",
+            "overlaysWebView": true
+        },
+        "MusicControls": {
+            "notificationIcon": "ic_launcher"
         }
     }
 }

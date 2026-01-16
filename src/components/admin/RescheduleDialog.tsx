@@ -8,20 +8,27 @@ import { format } from "date-fns";
 interface RescheduleDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  currentScheduledAt: string | null;
   onReschedule: (newDate: Date) => Promise<void>;
-  wallpaperTitle: string;
+  title?: string;
+  wallpaperTitle?: string;
+  currentDate?: Date;
+  currentScheduledAt?: string | null;
 }
 
 export function RescheduleDialog({
   isOpen,
   onClose,
-  currentScheduledAt,
   onReschedule,
+  title,
   wallpaperTitle,
+  currentDate,
+  currentScheduledAt,
 }: RescheduleDialogProps) {
+  const displayTitle = title || wallpaperTitle || "Item";
+
   // Initialize with current scheduled date if valid, otherwise use tomorrow at noon
   const getInitialDate = () => {
+    if (currentDate) return currentDate;
     if (currentScheduledAt) {
       const date = new Date(currentScheduledAt);
       if (!isNaN(date.getTime())) {
@@ -69,7 +76,7 @@ export function RescheduleDialog({
         {/* Header */}
         <div className="border-b border-gray-200 p-6 flex items-center justify-between">
           <h3 className="text-xl font-semibold text-gray-800 text-inter-semibold-18">
-            Reschedule Wallpaper
+            Reschedule
           </h3>
           <button
             onClick={onClose}
@@ -83,8 +90,8 @@ export function RescheduleDialog({
         {/* Content */}
         <div className="p-6 space-y-4">
           <div>
-            <p className="text-sm text-gray-600 text-inter-regular-14 mb-1">Wallpaper:</p>
-            <p className="font-medium text-gray-900 text-inter-medium-16">{wallpaperTitle}</p>
+            <p className="text-sm text-gray-600 text-inter-regular-14 mb-1">Item:</p>
+            <p className="font-medium text-gray-900 text-inter-medium-16">{displayTitle}</p>
           </div>
 
           <div>
@@ -104,9 +111,9 @@ export function RescheduleDialog({
                 <CalendarComponent
                   mode="single"
                   selected={newScheduleDate}
-                  onSelect={(date) => date && setNewScheduleDate(date)}
+                  onSelect={(date: Date | undefined) => date && setNewScheduleDate(date)}
                   initialFocus
-                  disabled={(date) => date < new Date()}
+                  disabled={(date: Date) => date < new Date()}
                 />
                 <div className="p-3 border-t">
                   <label className="block text-sm font-medium text-gray-700 mb-2 text-inter-medium-16">

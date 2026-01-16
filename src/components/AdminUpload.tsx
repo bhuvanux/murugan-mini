@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Upload, Loader2, Image, Video } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { SeedDataButton } from './SeedDataButton';
+import { compressImage } from '../utils/compressionHelper';
 
 export function AdminUpload() {
   const [uploading, setUploading] = useState(false);
@@ -30,7 +31,7 @@ export function AdminUpload() {
     if (selectedFile) {
       setFile(selectedFile);
       setPreviewUrl(URL.createObjectURL(selectedFile));
-      
+
       // Auto-detect type
       if (selectedFile.type.startsWith('image/')) {
         setFormData({ ...formData, type: 'image' });
@@ -83,17 +84,57 @@ export function AdminUpload() {
       // Upload main file
       const bucket = formData.type === 'image' ? 'media-images' : 'media-videos';
       const timestamp = Date.now();
-      const extension = file.name.split('.').pop();
+
+      // 1. Guardrail: Max file size check (20MB)
+      if (file.size > 20 * 1024 * 1024) {
+        toast.error("File is too large (>20MB). Please pick a smaller file.");
+        setUploading(false);
+        return;
+      }
+
+      let fileToUpload = file;
+      let originalSize = file.size;
+      let optimizedSize = file.size;
+
+      // Compress if it is an image
+      if (formData.type === 'image') {
+        console.log(`[Upload] Starting compression for ${file.name}. Original size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+        try {
+          const result = await compressImage(file);
+          fileToUpload = result.file;
+          originalSize = result.originalSize;
+          optimizedSize = result.optimizedSize;
+
+          console.log(`[Upload] Compression complete. New size: ${(optimizedSize / 1024 / 1024).toFixed(2)} MB`);
+          console.log(`[Upload] Savings: ${((1 - optimizedSize / originalSize) * 100).toFixed(0)}%`);
+        } catch (err) {
+          console.error("Compression failed in AdminUpload:", err);
+          // 2. Guardrail: Fail if compression fails
+          toast.error("Image optimization failed. Upload cancelled.");
+          setUploading(false);
+          return;
+        }
+      }
+
+      const extension = fileToUpload.name.split('.').pop(); // Use compressed file extension (likely webp)
       const filename = `${timestamp}.${extension}`;
-      
-      const storagePath = await uploadFile(file, bucket, filename);
+
+      const storagePath = await uploadFile(fileToUpload, bucket, filename);
 
       // Upload thumbnail
       let thumbnailUrl = storagePath;
       if (thumbnailFile) {
-        const thumbExtension = thumbnailFile.name.split('.').pop();
+        // Theoretically we should compress thumbnail too, but let's keep it simple for now or reuse logic
+        // For distinct thumbnail uploads, we can just use the helper too
+        let thumbToUpload = thumbnailFile;
+        try {
+          const thumbResult = await compressImage(thumbnailFile, 400); // Smaller for thumbnail
+          thumbToUpload = thumbResult.file;
+        } catch (e) { console.warn("Thumb compression failed"); }
+
+        const thumbExtension = thumbToUpload.name.split('.').pop();
         const thumbFilename = `${timestamp}_thumb.${thumbExtension}`;
-        thumbnailUrl = await uploadFile(thumbnailFile, 'media-images', thumbFilename);
+        thumbnailUrl = await uploadFile(thumbToUpload, 'media-images', thumbFilename);
       }
 
       // Get video duration if it's a video
@@ -121,6 +162,8 @@ export function AdminUpload() {
             duration_seconds: durationSeconds,
             downloadable: formData.downloadable,
             uploader: 'admin',
+            original_size_bytes: originalSize,
+            optimized_size_bytes: optimizedSize,
           }),
         }
       );
@@ -131,7 +174,7 @@ export function AdminUpload() {
       }
 
       toast.success('Media uploaded successfully!');
-      
+
       // Reset form
       setFormData({
         title: '',

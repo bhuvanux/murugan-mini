@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw, BarChart3, FolderInput, Settings, CheckSquare, Grid3x3, List, Calendar as CalendarIcon, Clock, Heart, Share2 } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw, BarChart3, FolderInput, Settings, CheckSquare, Grid3x3, List, Calendar as CalendarIcon, Clock, Heart, Share2, Download, AlertCircle, HardDrive } from "lucide-react";
 import { toast } from "sonner";
-import { UploadModal } from "./UploadModal";
+import { AddSparkleModal } from "./AddSparkleModal";
 import { DatabaseSetupGuide } from "./DatabaseSetupGuide";
 import { FolderDropdown } from "./FolderDropdown";
 import { CountdownTimerBadge } from "./CountdownTimerBadge";
@@ -10,8 +10,11 @@ import { RescheduleDialog } from "./RescheduleDialog";
 import { FoldersSetupGuide } from "./FoldersSetupGuide";
 import { SparkleAnalyticsDrawer } from "./SparkleAnalyticsDrawer";
 import { DateRangeFilter, DateRangePreset } from "./DateRangeFilter";
+import { BackendDiagnostics } from "../BackendDiagnostics";
+import { MetadataBackfill } from "./analytics/MetadataBackfill";
 import * as adminAPI from "../../utils/adminAPI";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
+import { format } from "date-fns";
 
 interface Sparkle {
   id: string;
@@ -27,6 +30,7 @@ interface Sparkle {
   view_count: number;
   like_count: number;
   share_count: number;
+  download_count: number;
   created_at: string;
   tags?: string[];
   folder_id?: string;
@@ -43,6 +47,47 @@ interface SparkleFolder {
 
 type ViewMode = "card" | "list";
 
+// Helper to calculate compression stats
+const getCompressionInfo = (sparkle: any) => {
+  // Check if we have the new metadata format
+  if (sparkle.metadata && sparkle.metadata.original_size && sparkle.metadata.optimized_size) {
+    const original = sparkle.metadata.original_size;
+    const optimized = sparkle.metadata.optimized_size;
+    const ratio = sparkle.metadata.compression_ratio;
+
+    return {
+      original: formatBytes(original),
+      optimized: formatBytes(optimized),
+      ratio: isNaN(parseFloat(ratio)) ? '0%' : `${(parseFloat(ratio) * 100).toFixed(0)}%`,
+      rawRatio: parseFloat(ratio)
+    };
+  }
+
+  // Fallback to legacy fields if available
+  if (sparkle.original_size_bytes && sparkle.optimized_size_bytes) {
+    const original = sparkle.original_size_bytes;
+    const optimized = sparkle.optimized_size_bytes;
+    const savings = 1 - (optimized / original);
+
+    return {
+      original: formatBytes(original),
+      optimized: formatBytes(optimized),
+      ratio: `${(savings * 100).toFixed(0)}%`,
+      rawRatio: savings
+    };
+  }
+
+  return null;
+};
+
+const formatBytes = (bytes: number) => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
 export function AdminSparkleManager() {
   const [sparkles, setSparkles] = useState<Sparkle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,7 +95,7 @@ export function AdminSparkleManager() {
   const [activeTab, setActiveTab] = useState<"published" | "scheduled" | "draft">("published");
   const [showDatabaseSetup, setShowDatabaseSetup] = useState(false);
   const [showFoldersSetup, setShowFoldersSetup] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("card");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // Date range filter for analytics
@@ -61,7 +106,7 @@ export function AdminSparkleManager() {
   });
   const [endDate, setEndDate] = useState<Date | null>(() => new Date());
   const [datePreset, setDatePreset] = useState<DateRangePreset>("month");
-  
+
   // Aggregate analytics for the date range
   const [aggregateAnalytics, setAggregateAnalytics] = useState<{
     total_views: number;
@@ -87,36 +132,36 @@ export function AdminSparkleManager() {
     try {
       setIsLoading(true);
       console.log('[AdminSparkleManager] Starting to load sparkles...');
-      
+
       const result = await adminAPI.getSparkles();
-      
+
       console.log("[AdminSparkleManager] Loaded sparkles:", result);
-      
+
       setSparkles(result.data || []);
-      
+
       if ((result.data || []).length === 0 && !selectedFolder) {
         toast.info("No sparkles found. Upload your first sparkle!");
       }
-      
+
       setShowDatabaseSetup(false);
     } catch (error: any) {
       console.error("[AdminSparkleManager] Load error:", error);
-      
+
       if (
-        error.message.includes("Failed to fetch") || 
-        error.message.includes("500") || 
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("500") ||
         error.message.includes("relation") ||
         error.message.includes("schema cache") ||
         error.message.includes("Could not find the table")
       ) {
         setShowDatabaseSetup(true);
       }
-      
+
       toast.error("Database tables not found", {
         duration: 8000,
         description: "Please follow the setup guide above to create the database tables.",
       });
-      
+
       setSparkles([]);
     } finally {
       setIsLoading(false);
@@ -131,12 +176,12 @@ export function AdminSparkleManager() {
     }
 
     if (!(startDate instanceof Date) || isNaN(startDate.getTime()) ||
-        !(endDate instanceof Date) || isNaN(endDate.getTime())) {
+      !(endDate instanceof Date) || isNaN(endDate.getTime())) {
       console.error('[AdminSparkleManager] Invalid date objects:', { startDate, endDate });
       setAggregateAnalytics(null);
       return;
     }
-    
+
     try {
       console.log('[AdminSparkleManager] Loading aggregate analytics for date range:', {
         start: startDate.toISOString(),
@@ -148,7 +193,7 @@ export function AdminSparkleManager() {
         end_date: endDate.toISOString(),
         content_type: 'sparkle',
       });
-      
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/analytics/aggregate?${params}`,
         {
@@ -157,13 +202,13 @@ export function AdminSparkleManager() {
           },
         }
       );
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const result = await response.json();
-      
+
       if (result.success && result.data) {
         console.log('[AdminSparkleManager] Aggregate analytics loaded:', result.data);
         setAggregateAnalytics(result.data);
@@ -189,14 +234,14 @@ export function AdminSparkleManager() {
         }
       );
       const result = await response.json();
-      
+
       if (!response.ok || result.code === 'PGRST205' || result.message?.includes('schema cache')) {
         console.log('[Sparkle Folders] Tables not set up yet - folder features will be hidden');
         setShowFoldersSetup(true);
         setFolders([]);
         return;
       }
-      
+
       if (result.success) {
         const foldersWithCounts = (result.data || []).map((folder: any) => ({
           ...folder,
@@ -233,16 +278,16 @@ export function AdminSparkleManager() {
         }
       );
       const result = await response.json();
-      
+
       if (!response.ok || result.code === 'PGRST205' || result.message?.includes('schema cache')) {
         setShowFoldersSetup(true);
         throw new Error('Please set up the database tables first. See the orange banner above for instructions.');
       }
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to create folder');
       }
-      
+
       await loadFolders();
     } catch (error: any) {
       if (error.message?.includes('PGRST205') || error.message?.includes('schema cache') || error.message?.includes('database tables')) {
@@ -267,7 +312,7 @@ export function AdminSparkleManager() {
     );
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'Failed to update folder');
-    
+
     await loadFolders();
   };
 
@@ -284,11 +329,11 @@ export function AdminSparkleManager() {
     );
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'Failed to delete folder');
-    
+
     if (selectedFolder === folderId) {
       setSelectedFolder(null);
     }
-    
+
     await loadFolders();
   };
 
@@ -335,7 +380,7 @@ export function AdminSparkleManager() {
       );
 
       await Promise.all(promises);
-      
+
       toast.success(`Moved ${selectedSparkles.size} sparkle(s) to folder`);
       setShowMoveToFolderModal(false);
       setSelectedSparkles(new Set());
@@ -364,7 +409,7 @@ export function AdminSparkleManager() {
       );
 
       await Promise.all(promises);
-      
+
       toast.success(`Deleted ${selectedSparkles.size} sparkle(s)`);
       setSelectedSparkles(new Set());
       loadSparkles();
@@ -376,27 +421,38 @@ export function AdminSparkleManager() {
 
   // Get filtered sparkles based on active tab
   const getFilteredSparkles = () => {
+    const execId = Math.random().toString(36).substr(2, 5);
     let filtered = sparkles;
+
+    console.log(`[${execId}] Initial count:`, sparkles.length, 'sparkles:', sparkles.map(s => ({ id: s.id.substr(0, 8), status: s.publish_status, folder: s.folder_id })));
+    console.log(`[${execId}] activeTab:`, activeTab);
+    console.log(`[${execId}] selectedFolder:`, selectedFolder);
 
     // Filter by active tab
     if (activeTab === "published") {
       filtered = filtered.filter(s => s.publish_status === "published");
+      console.log(`[${execId}] After publish filter:`, filtered.length);
     } else if (activeTab === "scheduled") {
-      filtered = filtered.filter(s => 
+      filtered = filtered.filter(s =>
         s.publish_status === "scheduled" && s.scheduled_at
       );
     } else if (activeTab === "draft") {
-      filtered = filtered.filter(s => 
-        s.publish_status === "draft" || 
+      filtered = filtered.filter(s =>
+        s.publish_status === "draft" ||
         (s.publish_status === "scheduled" && !s.scheduled_at)
       );
     }
 
     // Filter by folder
     if (selectedFolder) {
+      console.log(`[${execId}] Applying folder filter for:`, selectedFolder);
       filtered = filtered.filter(s => s.folder_id === selectedFolder);
+      console.log(`[${execId}] After folder filter:`, filtered.length);
     }
 
+    console.log(`[${execId}] Final filtered count:`, filtered.length);
+    console.log(`[${execId}] Actual filtered array:`, filtered);
+    console.log(`[${execId}] About to return filtered`);
     return filtered;
   };
 
@@ -417,7 +473,7 @@ export function AdminSparkleManager() {
   const handleTogglePublish = async (sparkle: Sparkle) => {
     try {
       const newStatus = sparkle.publish_status === "published" ? "draft" : "published";
-      
+
       await adminAPI.updateSparkle(sparkle.id, {
         publish_status: newStatus,
       });
@@ -462,13 +518,13 @@ export function AdminSparkleManager() {
         sparkleId,
         newDate: newDate.toISOString(),
       });
-      
+
       const result = await adminAPI.updateSparkle(sparkleId, {
         scheduled_at: newDate.toISOString(),
       });
-      
+
       console.log('[AdminSparkleManager] Reschedule response:', result);
-      
+
       toast.success("Sparkle rescheduled successfully");
       await loadSparkles();
     } catch (error: any) {
@@ -496,13 +552,36 @@ export function AdminSparkleManager() {
     }
   };
 
-  const filteredSparkles = getFilteredSparkles();
-  
+  const filteredSparkles = React.useMemo(() => {
+    let filtered = sparkles;
+
+    // Filter by active tab
+    if (activeTab === "published") {
+      filtered = filtered.filter(s => s.publish_status === "published");
+    } else if (activeTab === "scheduled") {
+      filtered = filtered.filter(s =>
+        s.publish_status === "scheduled" && s.scheduled_at
+      );
+    } else if (activeTab === "draft") {
+      filtered = filtered.filter(s =>
+        s.publish_status === "draft" ||
+        (s.publish_status === "scheduled" && !s.scheduled_at)
+      );
+    }
+
+    // Filter by folder
+    if (selectedFolder) {
+      filtered = filtered.filter(s => s.folder_id === selectedFolder);
+    }
+
+    return filtered;
+  }, [sparkles, activeTab, selectedFolder]);
+
   // Calculate accurate tab counts
   const publishedCount = sparkles.filter(s => s.publish_status === "published").length;
   const scheduledCount = sparkles.filter(s => s.publish_status === "scheduled" && s.scheduled_at).length;
-  const draftCount = sparkles.filter(s => 
-    s.publish_status === "draft" || 
+  const draftCount = sparkles.filter(s =>
+    s.publish_status === "draft" ||
     (s.publish_status === "scheduled" && !s.scheduled_at)
   ).length;
   const uncategorizedCount = sparkles.filter(s => !s.folder_id).length;
@@ -511,7 +590,7 @@ export function AdminSparkleManager() {
     <div className="space-y-6 text-inter-regular-14">
       {/* Database Setup Guide */}
       {showDatabaseSetup && <DatabaseSetupGuide />}
-      
+
       {/* Folders Setup Guide */}
       {showFoldersSetup && <FoldersSetupGuide contentType="sparkle" />}
 
@@ -532,16 +611,16 @@ export function AdminSparkleManager() {
               setDatePreset(preset);
             }}
           />
-          
+
           {/* Diagnostics Button (Settings Icon) */}
           <button
             onClick={() => setShowDiagnostics(!showDiagnostics)}
-            className="p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className={`p-3 border rounded-lg transition-colors ${showDiagnostics ? "bg-gray-100 border-gray-400" : "border-gray-300 hover:bg-gray-50"}`}
             title="System Diagnostics"
           >
             <Settings className="w-5 h-5" />
           </button>
-          
+
           <button
             onClick={() => {
               loadSparkles();
@@ -562,6 +641,18 @@ export function AdminSparkleManager() {
           </button>
         </div>
       </div>
+
+      {/* Diagnostics Panel (Collapsible) */}
+      {showDiagnostics && (
+        <div className="space-y-4 mb-6">
+          <BackendDiagnostics />
+          <MetadataBackfill
+            items={sparkles}
+            onUpdate={loadSparkles}
+            type="sparkle"
+          />
+        </div>
+      )}
 
       {/* Stats */}
       <div className="space-y-4">
@@ -670,33 +761,30 @@ export function AdminSparkleManager() {
             <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5">
               <button
                 onClick={() => setActiveTab("published")}
-                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${
-                  activeTab === "published"
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${activeTab === "published"
+                  ? "bg-green-600 text-white shadow-sm"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 <Eye className="w-4 h-4 inline mr-1.5" />
                 Published ({publishedCount})
               </button>
               <button
                 onClick={() => setActiveTab("scheduled")}
-                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${
-                  activeTab === "scheduled"
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${activeTab === "scheduled"
+                  ? "bg-green-600 text-white shadow-sm"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 <Clock className="w-4 h-4 inline mr-1.5" />
                 Scheduled ({scheduledCount})
               </button>
               <button
                 onClick={() => setActiveTab("draft")}
-                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${
-                  activeTab === "draft"
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`py-2 px-4 rounded text-sm font-medium transition-all text-inter-medium-14 ${activeTab === "draft"
+                  ? "bg-green-600 text-white shadow-sm"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 <EyeOff className="w-4 h-4 inline mr-1.5" />
                 Drafts ({draftCount})
@@ -715,27 +803,25 @@ export function AdminSparkleManager() {
                   Select All
                 </button>
               )}
-              
+
               {/* View Mode Toggle */}
               <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5">
                 <button
                   onClick={() => setViewMode("card")}
-                  className={`p-1.5 rounded transition-colors ${
-                    viewMode === "card"
-                      ? "bg-green-600 text-white"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
+                  className={`p-1.5 rounded transition-colors ${viewMode === "card"
+                    ? "bg-green-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                    }`}
                   title="Card View"
                 >
                   <Grid3x3 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewMode("list")}
-                  className={`p-1.5 rounded transition-colors ${
-                    viewMode === "list"
-                      ? "bg-green-600 text-white"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
+                  className={`p-1.5 rounded transition-colors ${viewMode === "list"
+                    ? "bg-green-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100"
+                    }`}
                   title="List View"
                 >
                   <List className="w-4 h-4" />
@@ -775,9 +861,8 @@ export function AdminSparkleManager() {
               {filteredSparkles.map((sparkle) => (
                 <div
                   key={sparkle.id}
-                  className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden hover:shadow-md transition-all ${
-                    selectedSparkles.has(sparkle.id) ? "border-green-500 ring-2 ring-green-200" : "border-gray-200"
-                  }`}
+                  className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden hover:shadow-md transition-all ${selectedSparkles.has(sparkle.id) ? "border-green-500 ring-2 ring-green-200" : "border-gray-200"
+                    }`}
                 >
                   {/* Image */}
                   <div className="relative aspect-[9/16] bg-gray-100">
@@ -803,13 +888,12 @@ export function AdminSparkleManager() {
                         <CountdownTimerBadge scheduledAt={sparkle.scheduled_at} />
                       ) : (
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium text-inter-medium-16 ${
-                            sparkle.publish_status === "published"
-                              ? "bg-green-100 text-green-700"
-                              : sparkle.publish_status === "scheduled"
+                          className={`px-3 py-1 rounded-full text-xs font-medium text-inter-medium-16 ${sparkle.publish_status === "published"
+                            ? "bg-green-100 text-green-700"
+                            : sparkle.publish_status === "scheduled"
                               ? "bg-blue-100 text-blue-700"
                               : "bg-yellow-100 text-yellow-700"
-                          }`}
+                            }`}
                         >
                           {sparkle.publish_status}
                         </span>
@@ -827,21 +911,55 @@ export function AdminSparkleManager() {
                         {sparkle.description}
                       </p>
                     )}
-
                     {/* Stats */}
-                    <div className="flex items-center gap-4 mb-3 pb-3 border-b border-gray-200">
-                      <div>
-                        <p className="text-xs text-gray-500 text-inter-regular-14">Views</p>
-                        <p className="font-semibold text-gray-800 text-inter-medium-16">
-                          {sparkle.view_count || 0}
-                        </p>
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Eye className="w-4 h-4" />
+                          <span>Views</span>
+                        </div>
+                        <span className="font-medium text-inter-medium-14">{sparkle.view_count || 0}</span>
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500 text-inter-regular-14">Likes</p>
-                        <p className="font-semibold text-gray-800 text-inter-medium-16">
-                          {sparkle.like_count || 0}
-                        </p>
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Heart className="w-4 h-4" />
+                          <span>Likes</span>
+                        </div>
+                        <span className="font-medium text-inter-medium-14">{sparkle.like_count || 0}</span>
                       </div>
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Share2 className="w-4 h-4" />
+                          <span>Shares</span>
+                        </div>
+                        <span className="font-medium text-inter-medium-14">{sparkle.share_count || 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Download className="w-4 h-4" />
+                          <span>Downloads</span>
+                        </div>
+                        <span className="font-medium text-inter-medium-14">{sparkle.download_count || 0}</span>
+                      </div>
+                    </div>
+
+                    {/* Compression Stats (Card View) */}
+                    {getCompressionInfo(sparkle) && (
+                      <div className="mb-4 p-2.5 bg-green-50 rounded-xl border border-green-100">
+                        <div className="flex items-center justify-between text-[10px] sm:text-xs">
+                          <div className="flex flex-col">
+                            <span className="text-gray-500 uppercase tracking-wider font-bold">Original</span>
+                            <span className="font-semibold text-gray-700">{getCompressionInfo(sparkle)!.original}</span>
+                          </div>
+                          <div className="flex flex-col text-right">
+                            <span className="text-green-600 uppercase tracking-wider font-bold">Saved {getCompressionInfo(sparkle)!.ratio}</span>
+                            <span className="font-semibold text-green-700">{getCompressionInfo(sparkle)!.optimized}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end">
                       <button
                         onClick={() => openAnalytics(sparkle.id)}
                         className="ml-auto text-blue-600 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition-colors"
@@ -866,11 +984,10 @@ export function AdminSparkleManager() {
                       ) : (
                         <button
                           onClick={() => handleTogglePublish(sparkle)}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors text-inter-medium-16 ${
-                            sparkle.publish_status === "published"
-                              ? "border-yellow-300 text-yellow-700 hover:bg-yellow-50"
-                              : "border-green-300 text-green-700 hover:bg-green-50"
-                          }`}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors text-inter-medium-16 ${sparkle.publish_status === "published"
+                            ? "border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+                            : "border-green-300 text-green-700 hover:bg-green-50"
+                            }`}
                         >
                           {sparkle.publish_status === "published" ? (
                             <>
@@ -898,7 +1015,7 @@ export function AdminSparkleManager() {
             </div>
           ) : (
             // List View
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -929,6 +1046,15 @@ export function AdminSparkleManager() {
                       LIKES
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      SHARES
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      DOWNLOADS
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      COMPRESSION
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       CREATED
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -940,9 +1066,8 @@ export function AdminSparkleManager() {
                   {filteredSparkles.map((sparkle) => (
                     <tr
                       key={sparkle.id}
-                      className={`hover:bg-gray-50 transition-colors ${
-                        selectedSparkles.has(sparkle.id) ? "bg-green-50" : ""
-                      }`}
+                      className={`hover:bg-gray-50 transition-colors ${selectedSparkles.has(sparkle.id) ? "bg-green-50" : ""
+                        }`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <input
@@ -974,13 +1099,12 @@ export function AdminSparkleManager() {
                           <CountdownTimerBadge scheduledAt={sparkle.scheduled_at} compact />
                         ) : (
                           <span
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium inline-block ${
-                              sparkle.publish_status === "published"
-                                ? "bg-green-100 text-green-700"
-                                : sparkle.publish_status === "scheduled"
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium inline-block ${sparkle.publish_status === "published"
+                              ? "bg-green-100 text-green-700"
+                              : sparkle.publish_status === "scheduled"
                                 ? "bg-blue-100 text-blue-700"
                                 : "bg-yellow-100 text-yellow-700"
-                            }`}
+                              }`}
                           >
                             {sparkle.publish_status}
                           </span>
@@ -991,6 +1115,24 @@ export function AdminSparkleManager() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-inter-regular-14">
                         {sparkle.like_count || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-inter-regular-14">
+                        {sparkle.share_count || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-inter-regular-14">
+                        {sparkle.download_count || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getCompressionInfo(sparkle) ? (
+                          <div className="flex flex-col text-xs text-inter-regular-14">
+                            <span className="text-gray-900">{getCompressionInfo(sparkle)!.optimized}</span>
+                            <span className="text-green-600 text-[10px] font-medium">
+                              Saved {getCompressionInfo(sparkle)!.ratio}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 text-inter-regular-14">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-inter-regular-14">
                         {new Date(sparkle.created_at).toLocaleDateString()}
@@ -1042,13 +1184,18 @@ export function AdminSparkleManager() {
       )}
 
       {/* Upload Modal */}
-      <UploadModal
+      <AddSparkleModal
         isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onSuccess={loadSparkles}
-        title="Sparkle"
-        uploadType="sparkle"
-        uploadFunction={adminAPI.uploadSparkle}
+        onClose={() => { setIsUploadModalOpen(false); loadSparkles(); }}
+        onSuccess={(status) => {
+          loadSparkles();
+          if (status === 'draft' || status === 'published' || status === 'scheduled') {
+            setActiveTab(status);
+            toast.success(`Switched to ${status} tab to show new uploads`);
+          }
+        }}
+        folders={showFoldersSetup ? [] : folders}
+        onCreateFolder={createFolder}
       />
 
       {/* Reschedule Dialog */}
@@ -1056,8 +1203,8 @@ export function AdminSparkleManager() {
         <RescheduleDialog
           isOpen={!!rescheduleSparkle}
           onClose={() => setRescheduleSparkle(null)}
-          onReschedule={(newDate) => {
-            handleReschedule(rescheduleSparkle.id, newDate);
+          onReschedule={async (newDate) => {
+            await handleReschedule(rescheduleSparkle.id, newDate);
             setRescheduleSparkle(null);
           }}
           currentDate={rescheduleSparkle.scheduled_at ? new Date(rescheduleSparkle.scheduled_at) : new Date()}

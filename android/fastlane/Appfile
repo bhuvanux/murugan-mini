@@ -1,0 +1,2 @@
+json_key_file("fastlane/fastlane_json_key.json")
+package_name("com.tamilkadavulmurugan.app")

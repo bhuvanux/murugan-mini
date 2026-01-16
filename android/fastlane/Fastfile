@@ -1,0 +1,22 @@
+default_platform(:android)
+
+platform :android do
+  desc "Deploy a new version to the Google Play Internal Track"
+  lane :deploy_internal do
+    gradle(task: "clean bundleRelease")
+    upload_to_play_store(
+      track: "internal",
+      release_status: "draft",
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Deploy a new version to the Google Play Production Track"
+  lane :deploy_production do
+    gradle(task: "clean bundleRelease")
+    upload_to_play_store(track: "production")
+  end
+end

@@ -123,7 +123,7 @@ export function AskGuganScreen({
   return (
     <div className="min-h-screen bg-[#EFF5EF]">
       {/* SECTION A - HEADER WITH SEARCH IN GREEN BACKGROUND */}
-      <div className="bg-[#0d5e38] pb-4">
+      <div className="bg-[#0d5e38] pb-4 pt-[210px]">
         <AppHeader title="Ask Gugan" />
 
         {/* SECTION B - SEARCH BAR (Inside Green Background) */}

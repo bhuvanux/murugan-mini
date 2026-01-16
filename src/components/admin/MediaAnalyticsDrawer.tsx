@@ -12,6 +12,8 @@ import {
   Users,
   Loader2,
   BarChart3,
+  FolderInput,
+  ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
@@ -23,25 +25,29 @@ interface MediaAnalytics {
   title: string;
   image_url: string;
   thumbnail_url?: string;
-  
+
   date_range?: {
     start: string;
     end: string;
     days: number;
   };
-  
+
   // Core metrics
   total_plays: number;
   total_downloads: number;
   total_likes: number;
   total_shares: number;
-  
+  total_add_to_playlist: number;
+  total_youtube_opens: number;
+
   // Range-specific metrics
   range_plays?: number;
   range_downloads?: number;
   range_likes?: number;
   range_shares?: number;
-  
+  range_add_to_playlist?: number;
+  range_youtube_opens?: number;
+
   // Time-based metrics
   plays_today: number;
   plays_week: number;
@@ -49,29 +55,30 @@ interface MediaAnalytics {
   downloads_today: number;
   downloads_week: number;
   downloads_month: number;
-  
+
   // Engagement metrics
   completion_rate: number;
   engagement_rate: number;
-  
+
   // Time series data
   daily_stats?: Array<{
     date: string;
     plays: number;
     downloads: number;
     likes: number;
+    shares: number;
   }>;
-  
+
   peak_hours?: Array<{
     hour: number;
     activity_count: number;
   }>;
-  
+
   top_locations?: Array<{
     location: string;
     count: number;
   }>;
-  
+
   created_at: string;
   last_interaction?: string;
 }
@@ -116,25 +123,31 @@ export function MediaAnalyticsDrawer({
         end_date: endDate.toISOString(),
       });
 
+      const baseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;
+
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/analytics/media/${mediaId}?${params}`,
+        `${baseUrl}/api/analytics/media-details/${mediaId}?${params}`,
         {
           headers: {
             Authorization: `Bearer ${publicAnonKey}`,
           },
+          cache: "no-store",
         }
       );
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to load analytics");
-      }
-
-      if (result.success) {
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || `HTTP ${response.status}`);
+        }
         setAnalytics(result.data);
       } else {
-        throw new Error(result.error || "Failed to load analytics");
+        const text = await response.text();
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${text || "Unknown error"}`);
+        }
+        throw new Error("Received non-JSON response from server");
       }
     } catch (err: any) {
       console.error("[MediaAnalytics] Load error:", err);
@@ -173,7 +186,7 @@ export function MediaAnalyticsDrawer({
               <X className="w-5 h-5" />
             </button>
           </div>
-          
+
           {/* Date Range Filter */}
           <DateRangeFilter
             onDateRangeChange={(start, end, preset) => {
@@ -206,14 +219,14 @@ export function MediaAnalyticsDrawer({
           ) : analytics ? (
             <>
               {/* Core Metrics */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
                   <div className="flex items-center gap-2 mb-2">
                     <Play className="w-5 h-5 text-green-600" />
                     <span className="text-gray-600 text-inter-regular-14">Total Plays</span>
                   </div>
                   <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
-                    {analytics.total_plays.toLocaleString()}
+                    {analytics.total_plays?.toLocaleString() || "0"}
                   </p>
                 </div>
 
@@ -223,7 +236,7 @@ export function MediaAnalyticsDrawer({
                     <span className="text-gray-600 text-inter-regular-14">Downloads</span>
                   </div>
                   <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
-                    {analytics.total_downloads.toLocaleString()}
+                    {analytics.total_downloads?.toLocaleString() || "0"}
                   </p>
                 </div>
 
@@ -233,7 +246,7 @@ export function MediaAnalyticsDrawer({
                     <span className="text-gray-600 text-inter-regular-14">Likes</span>
                   </div>
                   <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
-                    {analytics.total_likes.toLocaleString()}
+                    {analytics.total_likes?.toLocaleString() || "0"}
                   </p>
                 </div>
 
@@ -243,7 +256,27 @@ export function MediaAnalyticsDrawer({
                     <span className="text-gray-600 text-inter-regular-14">Shares</span>
                   </div>
                   <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
-                    {analytics.total_shares.toLocaleString()}
+                    {analytics.total_shares?.toLocaleString() || "0"}
+                  </p>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FolderInput className="w-5 h-5 text-orange-600" />
+                    <span className="text-gray-600 text-inter-regular-14">Playlist Adds</span>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
+                    {analytics.total_add_to_playlist?.toLocaleString() || "0"}
+                  </p>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ExternalLink className="w-5 h-5 text-red-500" />
+                    <span className="text-gray-600 text-inter-regular-14">YouTube Opens</span>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
+                    {analytics.total_youtube_opens?.toLocaleString() || "0"}
                   </p>
                 </div>
               </div>
@@ -258,7 +291,7 @@ export function MediaAnalyticsDrawer({
                     </span>
                   </div>
                   <p className="text-3xl font-bold text-green-900 text-inter-bold-20">
-                    {analytics.completion_rate.toFixed(1)}%
+                    {(analytics.completion_rate || 0).toFixed(1)}%
                   </p>
                 </div>
 
@@ -270,7 +303,7 @@ export function MediaAnalyticsDrawer({
                     </span>
                   </div>
                   <p className="text-3xl font-bold text-purple-900 text-inter-bold-20">
-                    {analytics.engagement_rate.toFixed(2)}%
+                    {(analytics.engagement_rate || 0).toFixed(2)}%
                   </p>
                 </div>
               </div>
@@ -285,19 +318,19 @@ export function MediaAnalyticsDrawer({
                   <div>
                     <p className="text-sm text-gray-600 mb-1 text-inter-regular-14">Today</p>
                     <p className="text-xl font-bold text-gray-800 text-inter-bold-20">
-                      {analytics.plays_today} plays
+                      {analytics.plays_today || 0} plays
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1 text-inter-regular-14">This Week</p>
                     <p className="text-xl font-bold text-gray-800 text-inter-bold-20">
-                      {analytics.plays_week} plays
+                      {analytics.plays_week || 0} plays
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1 text-inter-regular-14">This Month</p>
                     <p className="text-xl font-bold text-gray-800 text-inter-bold-20">
-                      {analytics.plays_month} plays
+                      {analytics.plays_month || 0} plays
                     </p>
                   </div>
                 </div>
@@ -346,6 +379,27 @@ export function MediaAnalyticsDrawer({
                         stroke="#ef4444"
                         strokeWidth={2}
                         name="Likes"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="shares"
+                        stroke="#8b5cf6"
+                        strokeWidth={2}
+                        name="Shares"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="playlist_adds"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                        name="Playlist Adds"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="youtube_opens"
+                        stroke="#dc2626"
+                        strokeWidth={2}
+                        name="YouTube Opens"
                       />
                     </LineChart>
                   </ResponsiveContainer>

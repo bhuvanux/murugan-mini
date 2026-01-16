@@ -1,0 +1,17 @@
+current directory: /Users/bhuvan/Documents/Bhuvan/Products/Tamil Kadavul Murugan/android/vendor/bundle/ruby/2.6.0/gems/sysrandom-1.0.5/ext/sysrandom
+/System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/bin/ruby -I /System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/lib/ruby/2.6.0 -r ./siteconf20260112-30343-1n3yhmh.rb extconf.rb
+creating Makefile
+
+current directory: /Users/bhuvan/Documents/Bhuvan/Products/Tamil Kadavul Murugan/android/vendor/bundle/ruby/2.6.0/gems/sysrandom-1.0.5/ext/sysrandom
+make "DESTDIR=" clean
+
+current directory: /Users/bhuvan/Documents/Bhuvan/Products/Tamil Kadavul Murugan/android/vendor/bundle/ruby/2.6.0/gems/sysrandom-1.0.5/ext/sysrandom
+make "DESTDIR="
+compiling randombytes_sysrandom.c
+compiling sysrandom_ext.c
+linking shared-object sysrandom_ext.bundle
+ld: warning: search path '/AppleInternal/Library/BuildRoots/91a344b1-f985-11ee-b563-fe8bc7981bff/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.5.Internal.sdk/usr/local/lib' not found
+
+current directory: /Users/bhuvan/Documents/Bhuvan/Products/Tamil Kadavul Murugan/android/vendor/bundle/ruby/2.6.0/gems/sysrandom-1.0.5/ext/sysrandom
+make "DESTDIR=" install
+/usr/bin/install -c -m 0755 sysrandom_ext.bundle ./.gem.20260112-30343-1pl0qao

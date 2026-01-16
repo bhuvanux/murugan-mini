@@ -14,11 +14,15 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 
+
+import { AppHeader } from './AppHeader';
+
 type SavedScreenProps = {
   onSelectMedia: (media: MediaItem, allMedia: MediaItem[]) => void;
+  onBack?: () => void;
 };
 
-export function SavedScreen({ onSelectMedia }: SavedScreenProps) {
+export function SavedScreen({ onSelectMedia, onBack }: SavedScreenProps) {
   const [savedMedia, setSavedMedia] = useState<MediaItem[]>([]);
   const [savedSongs, setSavedSongs] = useState<YouTubeMedia[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +40,7 @@ export function SavedScreen({ onSelectMedia }: SavedScreenProps) {
       // Get favorite IDs from localStorage for wallpapers
       const savedFavoritesStr = localStorage.getItem('user_favorites');
       const songFavoritesStr = localStorage.getItem('media_favorites');
-      
+
       // Load wallpapers
       if (savedFavoritesStr) {
         const favoriteIds = JSON.parse(savedFavoritesStr) as string[];
@@ -81,7 +85,7 @@ export function SavedScreen({ onSelectMedia }: SavedScreenProps) {
       // Update localStorage
       const savedFavoritesStr = localStorage.getItem('user_favorites') || '[]';
       let favoriteIds = JSON.parse(savedFavoritesStr) as string[];
-      
+
       // Remove from favorites
       favoriteIds = favoriteIds.filter(id => id !== mediaId);
       localStorage.setItem('user_favorites', JSON.stringify(favoriteIds));
@@ -102,7 +106,7 @@ export function SavedScreen({ onSelectMedia }: SavedScreenProps) {
     try {
       const savedFavoritesStr = localStorage.getItem('media_favorites') || '[]';
       let favoriteIds = JSON.parse(savedFavoritesStr) as string[];
-      
+
       favoriteIds = favoriteIds.filter(id => id !== mediaId);
       localStorage.setItem('media_favorites', JSON.stringify(favoriteIds));
 
@@ -112,7 +116,7 @@ export function SavedScreen({ onSelectMedia }: SavedScreenProps) {
         newSet.delete(mediaId);
         return newSet;
       });
-      
+
       toast.success('Removed from favorites');
     } catch (error: any) {
       console.error('[SavedScreen] Error removing song favorite:', error);
@@ -173,16 +177,12 @@ export function SavedScreen({ onSelectMedia }: SavedScreenProps) {
 
   if (loading) {
     return (
-      <>
-        <div className="flex justify-center pt-6 pb-4">
-          <MuruganLoader size={50} />
+      <div className="min-h-screen bg-[#f8faf7]">
+        <AppHeader title="Saved Items" variant="primary" showKolam={true} onBack={onBack} />
+        <div className="flex items-center justify-center min-h-screen">
+          <MuruganLoader size={80} />
         </div>
-        <div className="grid grid-cols-2 gap-1 px-1 pb-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <WallpaperSkeleton key={i} className="aspect-[3/4]" />
-          ))}
-        </div>
-      </>
+      </div>
     );
   }
 
@@ -190,155 +190,153 @@ export function SavedScreen({ onSelectMedia }: SavedScreenProps) {
 
   if (hasNoFavorites && !loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4">
-        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <Heart className="w-10 h-10 text-gray-400" />
+      <div className="min-h-screen bg-[#f8faf7]">
+        <AppHeader title="Saved Items" variant="primary" showKolam={true} onBack={onBack} />
+        <div className="flex flex-col items-center justify-center pt-32 px-4">
+          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <Heart className="w-10 h-10 text-gray-400" />
+          </div>
+          <p className="text-gray-600 text-center mb-2" style={{ fontFamily: 'var(--font-english)', fontWeight: 600 }}>
+            No saved items yet
+          </p>
+          <p className="text-gray-500 text-sm text-center" style={{ fontFamily: 'var(--font-english)' }}>
+            Tap the heart icon on any wallpaper, song, or video to save it here
+          </p>
         </div>
-        <p className="text-gray-600 text-center mb-2" style={{ fontFamily: 'var(--font-english)', fontWeight: 600 }}>
-          No saved items yet
-        </p>
-        <p className="text-gray-500 text-sm text-center" style={{ fontFamily: 'var(--font-english)' }}>
-          Tap the heart icon on any wallpaper, song, or video to save it here
-        </p>
       </div>
     );
   }
 
   return (
-    <div className="pb-20">
-      {/* Tabs */}
-      <div className="flex gap-0 px-[16px] border-b border-gray-200 sticky top-0 bg-[#F2FFF6] z-10 pt-[10px] pr-[16px] pb-[0px] pl-[16px] py-[10px]">
-        <button
-          onClick={() => setActiveTab('wallpapers')}
-          className={`flex-1 text-center py-3 transition-all relative ${
-            activeTab === 'wallpapers' ? 'text-[#0d5e38]' : 'text-gray-500'
-          }`}
-          style={{ fontFamily: 'var(--font-english)', fontWeight: activeTab === 'wallpapers' ? 600 : 400 }}
-        >
-          Wallpapers ({savedMedia.length})
-          {activeTab === 'wallpapers' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0d5e38]" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('songs')}
-          className={`flex-1 text-center py-3 transition-all relative ${
-            activeTab === 'songs' ? 'text-[#0d5e38]' : 'text-gray-500'
-          }`}
-          style={{ fontFamily: 'var(--font-english)', fontWeight: activeTab === 'songs' ? 600 : 400 }}
-        >
-          Songs & Videos ({savedSongs.length})
-          {activeTab === 'songs' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0d5e38]" />
-          )}
-        </button>
-      </div>
+    <div className="min-h-screen bg-[#f8faf7]">
+      <AppHeader title="Saved Items" variant="primary" showKolam={true} onBack={onBack}>
+        {/* Tabs */}
+        <div className="flex bg-black/10 p-1 rounded-xl">
+          <button
+            onClick={() => setActiveTab('wallpapers')}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'wallpapers' ? 'bg-white text-[#0d5e38] shadow-sm' : 'text-white/70'
+              }`}
+          >
+            Wallpapers ({savedMedia.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('songs')}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${activeTab === 'songs' ? 'bg-white text-[#0d5e38] shadow-sm' : 'text-white/70'
+              }`}
+          >
+            Divine Media ({savedSongs.length})
+          </button>
+        </div>
+      </AppHeader>
 
-      {/* Wallpapers Tab */}
-      {activeTab === 'wallpapers' && (
-        <>
-          {savedMedia.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 px-4">
-              <Heart className="w-12 h-12 text-gray-300 mb-3" />
-              <p className="text-gray-500 text-center" style={{ fontFamily: 'var(--font-english)' }}>
-                No liked wallpapers yet
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-1 px-1 pt-1">
-              {savedMedia.map((item) => (
-                <MediaCard
-                  key={item.id}
-                  media={item}
-                  onSelect={(mediaItem) => onSelectMedia(mediaItem, savedMedia)}
-                  isFavorite={favorites.has(item.id)}
-                  onToggleFavorite={toggleFavorite}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+      <div className="pt-[175px] pb-20">
 
-      {/* Songs & Videos Tab */}
-      {activeTab === 'songs' && (
-        <>
-          {savedSongs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 px-4">
-              <Music className="w-12 h-12 text-gray-300 mb-3" />
-              <p className="text-gray-500 text-center" style={{ fontFamily: 'var(--font-english)' }}>
-                No liked songs or videos yet
-              </p>
-            </div>
-          ) : (
-            <div className="px-4 pt-3 space-y-2">
-              {savedSongs.map((song) => (
-                <div
-                  key={song.id}
-                  className="bg-white rounded-lg p-3 flex items-center gap-3 shadow-sm"
-                >
-                  {/* Thumbnail */}
-                  <div className="relative flex-shrink-0">
-                    <ImageWithFallback
-                      src={song.thumbnail || getThumbnail(song.embedUrl)}
-                      alt={song.title}
-                      className="w-14 h-14 rounded-lg object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
-                      <Play className="w-6 h-6 text-white fill-current" />
+        {/* Wallpapers Tab */}
+        {activeTab === 'wallpapers' && (
+          <>
+            {savedMedia.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4">
+                <Heart className="w-12 h-12 text-gray-300 mb-3" />
+                <p className="text-gray-500 text-center" style={{ fontFamily: 'var(--font-english)' }}>
+                  No liked wallpapers yet
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-1 px-1">
+                {savedMedia.map((item) => (
+                  <MediaCard
+                    key={item.id}
+                    media={item}
+                    onSelect={(mediaItem) => onSelectMedia(mediaItem, savedMedia)}
+                    isFavorite={favorites.has(item.id)}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Divine Media Tab */}
+        {activeTab === 'songs' && (
+          <>
+            {savedSongs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4">
+                <Music className="w-12 h-12 text-gray-300 mb-3" />
+                <p className="text-gray-500 text-center" style={{ fontFamily: 'var(--font-english)' }}>
+                  No liked songs or videos yet
+                </p>
+              </div>
+            ) : (
+              <div className="px-4 space-y-2">
+                {savedSongs.map((song) => (
+                  <div
+                    key={song.id}
+                    className="bg-white rounded-lg p-3 flex items-center gap-3 shadow-sm"
+                  >
+                    {/* Thumbnail */}
+                    <div className="relative flex-shrink-0">
+                      <ImageWithFallback
+                        src={song.thumbnail || getThumbnail(song.embedUrl)}
+                        alt={song.title}
+                        className="w-14 h-14 rounded-lg object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
+                        <Play className="w-6 h-6 text-white fill-current" />
+                      </div>
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-gray-900 truncate" style={{ fontFamily: 'var(--font-english)', fontSize: '15px', fontWeight: 600 }}>
+                        {song.title}
+                      </h3>
+                      <p className="text-gray-500 text-sm mt-0.5 truncate" style={{ fontFamily: 'var(--font-english)' }}>
+                        {song.category || 'Media'} • {song.stats.views || 0} views
+                      </p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSongFavorite(song.id);
+                        }}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <Heart className="w-5 h-5 fill-red-500 text-red-500" />
+                      </button>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                            <MoreVertical className="w-5 h-5 text-gray-500" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => handleShare(song)}>
+                            <Share2 className="w-4 h-4 mr-2" />
+                            Share
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleOpenYouTube(song.embedUrl)}>
+                            <ExternalLink className="w-4 h-4 mr-2" />
+                            Open in YouTube
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => toggleSongFavorite(song.id)} className="text-red-600">
+                            <Heart className="w-4 h-4 mr-2" />
+                            Remove from Favorites
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-gray-900 truncate" style={{ fontFamily: 'var(--font-english)', fontSize: '15px', fontWeight: 600 }}>
-                      {song.title}
-                    </h3>
-                    <p className="text-gray-500 text-sm mt-0.5 truncate" style={{ fontFamily: 'var(--font-english)' }}>
-                      {song.category || 'Media'} • {song.stats.views || 0} views
-                    </p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSongFavorite(song.id);
-                      }}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      <Heart className="w-5 h-5 fill-red-500 text-red-500" />
-                    </button>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                          <MoreVertical className="w-5 h-5 text-gray-500" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onClick={() => handleShare(song)}>
-                          <Share2 className="w-4 h-4 mr-2" />
-                          Share
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleOpenYouTube(song.embedUrl)}>
-                          <ExternalLink className="w-4 h-4 mr-2" />
-                          Open in YouTube
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toggleSongFavorite(song.id)} className="text-red-600">
-                          <Heart className="w-4 h-4 mr-2" />
-                          Remove from Favorites
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

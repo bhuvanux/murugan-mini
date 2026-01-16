@@ -1,0 +1,385 @@
+/**
+ * Analytics Query Templates
+ * 
+ * Predefined analytics queries organized by category and business impact tier.
+ * Each template maps to existing RPC functions and analytics schemas.
+ */
+
+export type QueryCategory = 'auth' | 'users' | 'content' | 'notifications' | 'storage' | 'health';
+export type ResultType = 'kpi' | 'table' | 'chart' | 'list';
+export type BusinessTier = 1 | 2 | 3;
+
+export interface QueryParameter {
+    name: string;
+    type: 'date' | 'string' | 'number';
+    required: boolean;
+    default?: any;
+}
+
+export interface QueryTemplate {
+    id: string;
+    name: string;
+    description: string;
+    category: QueryCategory;
+    tier: BusinessTier; // 1 = Daily, 2 = Weekly, 3 = Monthly
+    rpcFunction: string;
+    resultType: ResultType;
+    parameters: QueryParameter[];
+    dataSource: string; // e.g., "auth_events", "users"
+    metricKey?: string; // For extracting specific metric from RPC result
+}
+
+export const QUERY_CATEGORIES = {
+    auth: {
+        label: 'Authentication & Onboarding',
+        icon: 'Key',
+        color: 'blue',
+        description: 'Login, signup, and OTP analytics'
+    },
+    users: {
+        label: 'Users & Geo Insights',
+        icon: 'Users',
+        color: 'green',
+        description: 'User demographics and location data'
+    },
+    content: {
+        label: 'Content Usage',
+        icon: 'Image',
+        color: 'purple',
+        description: 'Wallpapers, media, and Sparkle engagement'
+    },
+    notifications: {
+        label: 'Notifications Performance',
+        icon: 'Bell',
+        color: 'orange',
+        description: 'Push notification analytics'
+    },
+    storage: {
+        label: 'Storage & Bandwidth',
+        icon: 'Database',
+        color: 'red',
+        description: 'Storage usage and optimization'
+    },
+    health: {
+        label: 'System Health',
+        icon: 'Activity',
+        color: 'emerald',
+        description: 'Overall app performance metrics'
+    },
+};
+
+/**
+ * All predefined query templates
+ * Organized by category and business impact tier
+ */
+export const QUERY_TEMPLATES: QueryTemplate[] = [
+
+    // ============================================================
+    // 🔐 AUTH / LOGIN / ONBOARDING (Tier 1 - Daily Decisions)
+    // ============================================================
+
+    {
+        id: 'auth_logins_today',
+        name: 'Logins Today',
+        description: 'Total successful login attempts today',
+        category: 'auth',
+        tier: 1,
+        rpcFunction: 'get_auth_stats_v3',
+        resultType: 'kpi',
+        dataSource: 'auth_events',
+        metricKey: 'total_logins',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: 'today' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    {
+        id: 'auth_logins_yesterday',
+        name: 'Logins Yesterday',
+        description: 'Total successful login attempts yesterday',
+        category: 'auth',
+        tier: 1,
+        rpcFunction: 'get_auth_stats_v3',
+        resultType: 'kpi',
+        dataSource: 'auth_events',
+        metricKey: 'total_logins',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: 'yesterday' },
+            { name: 'end_date', type: 'date', required: true, default: 'yesterday_end' }
+        ]
+    },
+
+    {
+        id: 'auth_signups_today',
+        name: 'New Signups Today',
+        description: 'Users who completed signup today',
+        category: 'auth',
+        tier: 1,
+        rpcFunction: 'get_auth_stats_v3',
+        resultType: 'kpi',
+        dataSource: 'auth_events',
+        metricKey: 'total_signups',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: 'today' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    {
+        id: 'auth_otp_success_rate',
+        name: 'OTP Success Rate Today',
+        description: 'Percentage of OTPs successfully verified',
+        category: 'auth',
+        tier: 1,
+        rpcFunction: 'get_auth_stats_v3',
+        resultType: 'kpi',
+        dataSource: 'auth_events',
+        metricKey: 'otp_success_rate',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: 'today' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    {
+        id: 'auth_signup_funnel',
+        name: 'Signup Funnel Analysis',
+        description: 'Step-by-step conversion through signup process',
+        category: 'auth',
+        tier: 1,
+        rpcFunction: 'get_signup_funnel',
+        resultType: 'table',
+        dataSource: 'auth_events',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: 'today' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    {
+        id: 'auth_login_trends_7d',
+        name: 'Daily Login Trend (Last 7 Days)',
+        description: 'Login attempts charted over the past week',
+        category: 'auth',
+        tier: 2,
+        rpcFunction: 'get_auth_trends',
+        resultType: 'chart',
+        dataSource: 'auth_events',
+        parameters: [
+            { name: 'days_ago', type: 'number', required: true, default: 7 }
+        ]
+    },
+
+    {
+        id: 'auth_login_trends_30d',
+        name: 'Weekly Login Trend (Last 30 Days)',
+        description: 'Login pattern over the past month',
+        category: 'auth',
+        tier: 2,
+        rpcFunction: 'get_auth_trends',
+        resultType: 'chart',
+        dataSource: 'auth_events',
+        parameters: [
+            { name: 'days_ago', type: 'number', required: true, default: 30 }
+        ]
+    },
+
+    {
+        id: 'auth_peak_hours',
+        name: 'Peak Login Hours',
+        description: 'Top 5 hours with highest login activity',
+        category: 'auth',
+        tier: 2,
+        rpcFunction: 'get_auth_peak_windows',
+        resultType: 'table',
+        dataSource: 'auth_events',
+        parameters: []
+    },
+
+    {
+        id: 'auth_security_alerts',
+        name: 'Security Alerts',
+        description: 'Suspicious activity and multi-device logins',
+        category: 'auth',
+        tier: 2,
+        rpcFunction: 'get_security_alerts',
+        resultType: 'table',
+        dataSource: 'auth_events',
+        parameters: []
+    },
+
+    // ============================================================
+    // 👥 USERS & GEO INSIGHTS (Tier 1 & 2)
+    // ============================================================
+
+    {
+        id: 'users_active_today',
+        name: 'Active Users Today',
+        description: 'Users with >2min session duration today',
+        category: 'users',
+        tier: 1,
+        rpcFunction: 'get_auth_stats_v3',
+        resultType: 'kpi',
+        dataSource: 'auth_events',
+        metricKey: 'active_today_2min',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: 'today' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    {
+        id: 'users_city_distribution',
+        name: 'City-wise User Distribution',
+        description: 'User count and activity by city',
+        category: 'users',
+        tier: 1,
+        rpcFunction: 'get_location_map_data',
+        resultType: 'table',
+        dataSource: 'auth_events',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: '30d_ago' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    {
+        id: 'users_top_cities',
+        name: 'Top 5 Cities by Active Users',
+        description: 'Cities with highest user engagement',
+        category: 'users',
+        tier: 1,
+        rpcFunction: 'get_location_map_data',
+        resultType: 'table',
+        dataSource: 'auth_events',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: '7d_ago' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    {
+        id: 'users_new_7d',
+        name: 'New Users (Last 7 Days)',
+        description: 'Users onboarded in the past week',
+        category: 'users',
+        tier: 2,
+        rpcFunction: 'get_auth_stats_v3',
+        resultType: 'kpi',
+        dataSource: 'auth_events',
+        metricKey: 'total_signups',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: '7d_ago' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    // ============================================================
+    // 🖼 CONTENT USAGE (Tier 1 & 2)
+    // ============================================================
+
+    {
+        id: 'content_wallpaper_views_today',
+        name: 'Wallpaper Views Today',
+        description: 'Total wallpaper views across all content',
+        category: 'content',
+        tier: 2,
+        rpcFunction: 'get_peak_modules',
+        resultType: 'table',
+        dataSource: 'auth_events',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: 'today' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    {
+        id: 'content_module_usage',
+        name: 'Content Module Usage',
+        description: 'Activity breakdown by module (Wallpapers, Media, Sparkle)',
+        category: 'content',
+        tier: 1,
+        rpcFunction: 'get_peak_modules',
+        resultType: 'table',
+        dataSource: 'auth_events',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: '7d_ago' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+    // ============================================================
+    // 🔔 NOTIFICATIONS (Tier 2)
+    // ============================================================
+
+    // Note: Notification analytics would require additional RPC functions
+    // Placeholder templates for future implementation
+
+    // ============================================================
+    // 🗄 STORAGE & BANDWIDTH (Tier 1)
+    // ============================================================
+
+    // Note: Storage analytics would require additional RPC functions
+    // Placeholder for future implementation
+
+    // ============================================================
+    // 📈 SYSTEM HEALTH (Tier 1)
+    // ============================================================
+
+    {
+        id: 'health_dau',
+        name: 'Daily Active Users (DAU)',
+        description: 'Total unique active users today',
+        category: 'health',
+        tier: 1,
+        rpcFunction: 'get_auth_stats_v3',
+        resultType: 'kpi',
+        dataSource: 'auth_events',
+        metricKey: 'active_today_2min',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: 'today' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
+    },
+
+];
+
+/**
+ * Get templates by category
+ */
+export function getTemplatesByCategory(category: QueryCategory): QueryTemplate[] {
+    return QUERY_TEMPLATES.filter(t => t.category === category);
+}
+
+/**
+ * Get templates by business tier
+ */
+export function getTemplatesByTier(tier: BusinessTier): QueryTemplate[] {
+    return QUERY_TEMPLATES.filter(t => t.tier === tier);
+}
+
+/**
+ * Get template by ID
+ */
+export function getTemplateById(id: string): QueryTemplate | undefined {
+    return QUERY_TEMPLATES.find(t => t.id === id);
+}
+
+/**
+ * Search templates by keyword
+ */
+export function searchTemplates(query: string): QueryTemplate[] {
+    const lowerQuery = query.toLowerCase();
+    return QUERY_TEMPLATES.filter(t =>
+        t.name.toLowerCase().includes(lowerQuery) ||
+        t.description.toLowerCase().includes(lowerQuery)
+    );
+}
+
+/**
+ * Get Tier 1 (critical daily) templates
+ */
+export function getTier1Templates(): QueryTemplate[] {
+    return getTemplatesByTier(1);
+}

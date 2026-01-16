@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "405372776995",
+        "project_id": "tamilkadavulmurugan-andriod",
+        "storage_bucket": "tamilkadavulmurugan-andriod.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:405372776995:android:32f26dee404ed2ef21f796",
+                "android_client_info": {
+                    "package_name": "com.tamilkadavulmurugan.app"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyC-XHYGBfEgSUSwMBg0QWd1u0W-G3jxivQ"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

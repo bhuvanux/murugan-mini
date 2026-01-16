@@ -66,7 +66,7 @@ export default defineConfig({
     outDir: 'build',
   },
   server: {
-    port: 8081,
+    port: 8085,
     open: true,
   },
 });

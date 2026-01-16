@@ -5,20 +5,22 @@ import { EmptyState } from './EmptyState';
 import { WallpaperSkeleton } from './WallpaperSkeleton';
 import { MuruganLoader } from './MuruganLoader';
 import { ModuleBannerCarousel } from './ModuleBannerCarousel';
-import { SimpleHealthCheck } from './SimpleHealthCheck';
-import { TestBackendConnection } from './TestBackendConnection';
+
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageOff } from 'lucide-react';
-import { MockBannerAd } from './ads/MockBannerAd';
+import { ContentBanner } from './ui/overlays/ContentBanner';
+import { FeedAdCard } from './ui/overlays/FeedAdCard';
+import { shuffleArray } from '../utils/shuffle';
 
 type MasonryFeedProps = {
+  category?: 'wallpapers' | 'media';
   searchQuery?: string;
   onSelectMedia: (media: MediaItem, allMedia: MediaItem[]) => void;
   onTablesNotFound?: () => void;
 };
 
-export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: MasonryFeedProps) {
+export function MasonryFeed({ category = 'wallpapers', searchQuery, onSelectMedia, onTablesNotFound }: MasonryFeedProps) {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
@@ -61,11 +63,15 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
       console.log(`[MasonryFeed] Loaded ${result.data.length} wallpapers from admin backend`);
       console.log('[MasonryFeed] Sample item:', result.data[0]);
 
-      if (result.data.length < pageSize) {
+      // Pinterest-style shuffle: randomize content on every load
+      const shuffledData = shuffleArray(result.data);
+      console.log('[MasonryFeed] ✨ Shuffled wallpapers for fresh discovery');
+
+      if (shuffledData.length < pageSize) {
         setHasMore(false);
       }
 
-      setMedia((prev) => (pageNum === 1 ? result.data : [...prev, ...result.data]));
+      setMedia((prev) => (pageNum === 1 ? shuffledData : [...prev, ...shuffledData]));
 
       if (result.data.length === 0 && pageNum === 1) {
         console.log('[MasonryFeed] No wallpapers found. Admin needs to upload content.');
@@ -109,7 +115,7 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
     setErrorCount(0); // Reset error count on new search
     setShowErrorMessage(false); // Hide error message on new search
     loadMedia(1, searchQuery);
-  }, [searchQuery, loadMedia]);
+  }, [searchQuery, category, loadMedia]);
 
   useEffect(() => {
     loadFavorites();
@@ -178,47 +184,54 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
 
   if (loading && media.length === 0) {
     return (
-      <>
-        <div className="flex justify-center pt-6 pb-4">
-          <MuruganLoader size={50} />
-        </div>
-        <div className="grid grid-cols-2 gap-1 px-1 pb-4">
+      <div className="pb-[79px]">
+        {/* Banner Carousel - Always visible even during loading */}
+        <ModuleBannerCarousel bannerType="wallpaper" />
+
+        {/* Skeleton Grid */}
+        <div className="grid grid-cols-2 gap-1 p-[5px]">
           {Array.from({ length: 8 }).map((_, i) => (
             <WallpaperSkeleton key={i} className="aspect-[3/4]" />
           ))}
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <div className="pb-[79px]">
+    <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
       {/* Banner Carousel - For wallpapers/photos module */}
       <ModuleBannerCarousel bannerType="wallpaper" />
 
       {/* Masonry Grid with Ads */}
       <div className="grid grid-cols-2 gap-1 p-[5px]">
-        {media.flatMap((item, index) => {
-          const elements = [
-            <MediaCard
-              key={item.id}
-              media={item}
-              onSelect={(mediaItem) => onSelectMedia(mediaItem, media)}
-              isFavorite={favorites.has(item.id)}
-              onToggleFavorite={toggleFavorite}
-            />
-          ];
+        {media
+          .filter(item => {
+            if (category === 'wallpapers') return item.type === 'image';
+            if (category === 'media') return item.type === 'video';
+            return true;
+          })
+          .flatMap((item, index) => {
+            const elements = [
+              <MediaCard
+                key={item.id}
+                media={item}
+                onSelect={(mediaItem) => onSelectMedia(mediaItem, media)}
+                isFavorite={favorites.has(item.id)}
+                onToggleFavorite={toggleFavorite}
+              />
+            ];
 
-          // Inject Ad every 6 items (index 5, 11, 17...)
-          if ((index + 1) % 6 === 0) {
-            elements.push(
-              <div key={`ad-${index}`} className="col-span-2 py-2">
-                <MockBannerAd />
-              </div>
-            );
-          }
-          return elements;
-        })}
+            // Inject Ad every 6 items (index 5, 11, 17...)
+            if ((index + 1) % 6 === 0) {
+              elements.push(
+                <div key={`ad-${index}`} className="col-span-2 py-2">
+                  <FeedAdCard />
+                </div>
+              );
+            }
+            return elements;
+          })}
       </div>
 
       {hasMore && !showErrorMessage && (
@@ -253,24 +266,10 @@ export function MasonryFeed({ searchQuery, onSelectMedia, onTablesNotFound }: Ma
         </div>
       )}
 
-      {!hasMore && !showErrorMessage && media.length > 0 && (
-        <div className="px-4 py-6">
-          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 text-center">
-            <p className="text-green-900 font-medium">🎉 You've reached the end!</p>
-            <p className="text-sm text-gray-700 mt-1">
-              Showing all {media.length} wallpapers
-            </p>
-          </div>
-        </div>
-      )}
 
       {media.length === 0 && !loading && (
         <div className="px-4">
-          {/* Simple Health Check - Test if edge function is alive */}
-          <SimpleHealthCheck />
 
-          {/* Backend Connection Test Tool */}
-          <TestBackendConnection />
 
           {!searchQuery && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-4">

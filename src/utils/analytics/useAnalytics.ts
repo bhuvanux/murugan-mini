@@ -6,28 +6,50 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { projectId, publicAnonKey } from '../supabase/info';
+import { useAuth } from '../../contexts/AuthContext';
+
+// Declare gtag for GA4
+declare global {
+  interface Window {
+    gtag?: (command: string, ...args: any[]) => void;
+  }
+}
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc`;
 
-export type ModuleName = 
-  | 'wallpaper' 
-  | 'song' 
-  | 'video' 
-  | 'sparkle' 
-  | 'photo' 
-  | 'ask_gugan' 
-  | 'banner';
+export type ModuleName =
+  | 'wallpaper'
+  | 'song'
+  | 'video'
+  | 'sparkle'
+  | 'photo'
+  | 'ask_gugan'
+  | 'banner'
+  | 'auth';
 
-export type EventType = 
-  | 'view' 
-  | 'like' 
-  | 'unlike' 
-  | 'download' 
-  | 'share' 
-  | 'play' 
-  | 'watch_complete' 
-  | 'read' 
-  | 'click';
+export type EventType =
+  | 'view'
+  | 'like'
+  | 'unlike'
+  | 'download'
+  | 'share'
+  | 'play'
+  | 'watch_complete'
+  | 'read'
+  | 'add_to_playlist'
+  | 'play_video_inline'
+  | 'click'
+  | 'open_in_youtube'
+  | 'auth_viewed'
+  | 'otp_requested'
+  | 'otp_verified_fast2sms_success'
+  | 'login_completed'
+  | 'signup_completed'
+  | 'phone_submit'
+  | 'otp_sent'
+  | 'otp_verified'
+  | 'login_success'
+  | 'session_start';
 
 export interface AnalyticsStats {
   view?: number;
@@ -39,6 +61,12 @@ export interface AnalyticsStats {
   watch_complete?: number;
   read?: number;
   click?: number;
+
+  // Auth analytics
+  otp_requested?: number;
+  otp_verified_fast2sms_success?: number;
+  login_completed?: number;
+  signup_completed?: number;
 }
 
 export interface TrackingResult {
@@ -53,6 +81,7 @@ export interface TrackingResult {
  * Provides tracking functions and stats retrieval
  */
 export function useAnalytics(moduleName: ModuleName, itemId?: string) {
+  const { user } = useAuth();
   const [stats, setStats] = useState<AnalyticsStats>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +102,25 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
       }
 
       try {
-        const response = await fetch(`${API_BASE}/api/analytics/track`, {
+        // Automatically inject user city and other common metadata
+        const userCity = user?.user_metadata?.city || localStorage.getItem('last_selected_city');
+        const enrichedMetadata = {
+          city: userCity,
+          ...metadata,
+        };
+
+        // Ensure we have a valid user before making API call
+        if (!user?.id) {
+          console.warn('[Analytics] No user available for tracking');
+          return {
+            success: false,
+            tracked: false,
+            already_tracked: false,
+            unique_count: 0,
+          };
+        }
+
+        const response = await fetch(`${API_BASE}/api/t/log`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -81,18 +128,37 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
           },
           body: JSON.stringify({
             module_name: moduleName,
-            item_id: itemId,
             event_type: eventType,
-            metadata,
+            item_id: itemId,
+            user_id: user.id,
+            metadata: enrichedMetadata,
           }),
         });
 
+        // UNIFIED LOGGING: Backend handles this via /api/t/log (Removed client-side dup)
+
         if (!response.ok) {
-          throw new Error(`Tracking failed: ${response.statusText}`);
+          const errorText = await response.text();
+          throw new Error(`Tracking failed: ${response.status} ${errorText}`);
         }
 
         const data = await response.json();
-        
+
+        // NEW: Also send to GA4 for hybrid tracking
+        if (typeof window.gtag !== 'undefined') {
+          try {
+            window.gtag('event', `${moduleName}_${eventType}`, {
+              event_category: moduleName,
+              event_label: itemId,
+              custom_parameters: enrichedMetadata,
+              app_name: 'Tamil Kadavul Murugan',
+              platform: 'Android'
+            });
+          } catch (gaError) {
+            console.warn('[GA4] Track error:', gaError);
+          }
+        }
+
         // Update local stats optimistically
         if (data.success && data.tracked) {
           setStats(prev => ({
@@ -108,6 +174,20 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
           unique_count: data.unique_count,
         };
       } catch (err: any) {
+        // Ignore duplicate key errors (idempotency)
+        if (err.message && (
+          err.message.includes("duplicate key") ||
+          err.message.includes("unique constraint")
+        )) {
+          // console.warn('[Analytics] Duplicate event ignored:', eventType);
+          return {
+            success: true,
+            tracked: false,
+            already_tracked: true,
+            unique_count: 0, // Unfortunately we don't know the count, but UI might not update
+          };
+        }
+
         console.error('[Analytics] Track error:', err);
         setError(err.message);
         return {
@@ -151,11 +231,12 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
         });
 
         if (!response.ok) {
-          throw new Error(`Untracking failed: ${response.statusText}`);
+          const errorText = await response.text();
+          throw new Error(`Untracking failed: ${response.status} ${errorText}`);
         }
 
         const data = await response.json();
-        
+
         // Update local stats
         if (data.success) {
           setStats(prev => ({
@@ -193,7 +274,7 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
 
       try {
         const response = await fetch(
-          `${API_BASE}/api/analytics/check/${moduleName}/${itemId}/${eventType}`,
+          `${API_BASE}/api/analytics/check/${moduleName}/${eventType}?content_id=${itemId}`,
           {
             headers: {
               Authorization: `Bearer ${publicAnonKey}`,
@@ -202,7 +283,8 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
         );
 
         if (!response.ok) {
-          throw new Error(`Check failed: ${response.statusText}`);
+          const errorText = await response.text();
+          throw new Error(`Check failed: ${response.status} ${errorText}`);
         }
 
         const data = await response.json();
@@ -235,7 +317,8 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
       );
 
       if (!response.ok) {
-        throw new Error(`Fetch stats failed: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Fetch stats failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -275,6 +358,9 @@ export const analyticsTracker = {
   /**
    * Track event without hook
    */
+  /**
+   * Track event without hook
+   */
   track: async (
     moduleName: ModuleName,
     itemId: string,
@@ -282,7 +368,38 @@ export const analyticsTracker = {
     metadata: any = {}
   ): Promise<TrackingResult> => {
     try {
-      const response = await fetch(`${API_BASE}/api/analytics/track`, {
+      // 1. Try to get user from Supabase session
+      let userId: string | null = null;
+      let userCity: string | null = null;
+
+      try {
+        const { supabase } = await import('../../utils/supabase/client');
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user) {
+          userId = data.session.user.id;
+          userCity = data.session.user.user_metadata?.city;
+        }
+      } catch (e) {
+        console.warn('Error resolving user for tracker:', e);
+      }
+
+      // 2. Fallback to localStorage mock session if dev/test
+      if (!userId) {
+        const mockSession = localStorage.getItem('murugan_mock_session');
+        if (mockSession) {
+          try {
+            const parsed = JSON.parse(mockSession);
+            userCity = parsed.user_metadata?.city;
+          } catch (e) { }
+        }
+      }
+
+      const enrichedMetadata = {
+        city: userCity || localStorage.getItem('last_selected_city'),
+        ...metadata
+      };
+
+      const response = await fetch(`${API_BASE}/api/t/log`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -292,15 +409,35 @@ export const analyticsTracker = {
           module_name: moduleName,
           item_id: itemId,
           event_type: eventType,
-          metadata,
+          metadata: enrichedMetadata,
+          user_id: userId // Now correctly populated
         }),
       });
 
+      // AUTH EVENTS LOGGING REMOVED - Backend handles this via /api/t/log
+
       if (!response.ok) {
-        throw new Error(`Tracking failed: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Tracking failed: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
+
+      // NEW: Also send to GA4 for hybrid tracking
+      if (typeof window.gtag !== 'undefined') {
+        try {
+          window.gtag('event', `${moduleName}_${eventType}`, {
+            event_category: moduleName,
+            event_label: itemId,
+            custom_parameters: enrichedMetadata,
+            app_name: 'Tamil Kadavul Murugan',
+            platform: 'Android'
+          });
+        } catch (gaError) {
+          console.warn('[GA4] Track error:', gaError);
+        }
+      }
+
       return {
         success: data.success,
         tracked: data.tracked,
@@ -308,6 +445,23 @@ export const analyticsTracker = {
         unique_count: data.unique_count,
       };
     } catch (err: any) {
+      // Robustly check for duplicate key errors
+      const errorMessage = err?.message || err?.toString() || JSON.stringify(err);
+
+      if (
+        errorMessage.includes("duplicate key") ||
+        errorMessage.includes("unique constraint") ||
+        errorMessage.includes("P2002") || // Prisma code (just in case)
+        errorMessage.includes("23505") // Postgres code
+      ) {
+        return {
+          success: true,
+          tracked: false,
+          already_tracked: true,
+          unique_count: 0,
+        };
+      }
+
       console.error('[Analytics] Track error:', err);
       return {
         success: false,
@@ -316,6 +470,7 @@ export const analyticsTracker = {
         unique_count: 0,
       };
     }
+
   },
 
   /**
@@ -327,6 +482,16 @@ export const analyticsTracker = {
     eventType: EventType
   ): Promise<TrackingResult> => {
     try {
+      // 1. Try to get user from Supabase session (same logic as track)
+      let userId: string | null = null;
+      try {
+        const { supabase } = await import('../../utils/supabase/client');
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.user) {
+          userId = data.session.user.id;
+        }
+      } catch (e) { }
+
       const response = await fetch(`${API_BASE}/api/analytics/untrack`, {
         method: 'POST',
         headers: {
@@ -337,11 +502,30 @@ export const analyticsTracker = {
           module_name: moduleName,
           item_id: itemId,
           event_type: eventType,
+          user_id: userId // Added user_id to request body
         }),
       });
 
+      // ALSO REMOVE FROM AUTH EVENTS IF AUTHENTICATED
+      if (userId) {
+        try {
+          const { supabase } = await import('../../utils/supabase/client');
+          const authEventType = moduleName === 'auth'
+            ? `auth_${eventType}`
+            : `module_${moduleName}_${eventType}`;
+
+          // Note: Hard delete or soft delete? For now, we don't delete from auth_events history, 
+          // as that is an audit log. We only untrack from the aggregate counters (via the API above).
+          // If we wanted to "undo" an action in the feed, we might want to log an 'unlike' event instead.
+          // But for now, we just leave the history as is.
+        } catch (dbErr) {
+          console.error('[Analytics] DB Untrack Error:', dbErr);
+        }
+      }
+
       if (!response.ok) {
-        throw new Error(`Untracking failed: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Untracking failed: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
@@ -409,3 +593,6 @@ export const usePhotoAnalytics = (photoId?: string) =>
 
 export const useBannerAnalytics = (bannerId?: string) =>
   useAnalytics('banner', bannerId);
+
+export const useAuthAnalytics = () =>
+  useAnalytics('auth', '00000000-0000-0000-0000-000000000001'); // Fixed: Use valid UUID instead of string 'auth_flow'

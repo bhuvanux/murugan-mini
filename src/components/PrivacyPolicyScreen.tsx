@@ -2,11 +2,18 @@ import React from 'react';
 import { Card } from './ui/card';
 import { Shield, Lock, Eye, Database, FileText, Mail } from 'lucide-react';
 
-export function PrivacyPolicyScreen() {
+import { AppHeader } from './AppHeader';
+
+interface PrivacyPolicyScreenProps {
+  onBack?: () => void;
+}
+
+export function PrivacyPolicyScreen({ onBack }: PrivacyPolicyScreenProps) {
   return (
-    <div className="px-4 pb-20 bg-[#F2FFF6] min-h-screen">
-      <div className="py-4">
-        <h2 className="font-extrabold text-lg mb-2">Privacy Policy</h2>
+    <div className="bg-[#f8faf7] min-h-screen">
+      <AppHeader title="Privacy Policy" onBack={onBack} variant="primary" showKolam={true} />
+      <div className="px-4 pb-20" style={{ paddingTop: 'calc(92px + env(safe-area-inset-top))' }}>
+        {/* Removed internal title */}
         <p className="text-sm text-gray-600 mb-6">
           Last updated: November 12, 2025
         </p>
@@ -19,8 +26,8 @@ export function PrivacyPolicyScreen() {
               Our Commitment to Your Privacy
             </h3>
             <p className="text-sm text-gray-700 leading-relaxed">
-              At Murugan Wallpapers & Videos, we are committed to protecting your privacy and 
-              ensuring the security of your personal information. This privacy policy explains 
+              At Murugan Wallpapers & Videos, we are committed to protecting your privacy and
+              ensuring the security of your personal information. This privacy policy explains
               how we collect, use, and safeguard your data.
             </p>
           </div>
@@ -43,7 +50,7 @@ export function PrivacyPolicyScreen() {
               <div>
                 <div className="font-semibold mb-1">Usage Data</div>
                 <p className="text-gray-600">
-                  Information about your interactions with the app, such as wallpapers saved, 
+                  Information about your interactions with the app, such as wallpapers saved,
                   songs played, and download history.
                 </p>
               </div>
@@ -97,9 +104,9 @@ export function PrivacyPolicyScreen() {
               Data Security
             </h3>
             <p className="text-sm text-gray-700 leading-relaxed">
-              We implement industry-standard security measures to protect your personal information. 
-              Your data is encrypted during transmission and stored securely using Supabase's 
-              enterprise-grade infrastructure. We never share your personal information with 
+              We implement industry-standard security measures to protect your personal information.
+              Your data is encrypted during transmission and stored securely using Supabase's
+              enterprise-grade infrastructure. We never share your personal information with
               third parties without your explicit consent.
             </p>
           </div>
@@ -131,8 +138,8 @@ export function PrivacyPolicyScreen() {
           <div className="p-4">
             <h3 className="font-bold mb-3">Data Retention</h3>
             <p className="text-sm text-gray-700 leading-relaxed">
-              We retain your personal information only for as long as necessary to provide 
-              our services and comply with legal obligations. When you delete your account, 
+              We retain your personal information only for as long as necessary to provide
+              our services and comply with legal obligations. When you delete your account,
               we permanently remove all your personal data within 30 days.
             </p>
           </div>
@@ -143,8 +150,8 @@ export function PrivacyPolicyScreen() {
           <div className="p-4">
             <h3 className="font-bold mb-3">Children's Privacy</h3>
             <p className="text-sm text-gray-700 leading-relaxed">
-              Our app is suitable for all ages. We do not knowingly collect personal information 
-              from children under 13 without parental consent. If you believe we have collected 
+              Our app is suitable for all ages. We do not knowingly collect personal information
+              from children under 13 without parental consent. If you believe we have collected
               such information, please contact us immediately.
             </p>
           </div>
@@ -155,7 +162,7 @@ export function PrivacyPolicyScreen() {
           <div className="p-4">
             <h3 className="font-bold mb-3">Changes to This Policy</h3>
             <p className="text-sm text-gray-700 leading-relaxed">
-              We may update this privacy policy from time to time. We will notify you of any 
+              We may update this privacy policy from time to time. We will notify you of any
               changes by posting the new policy on this page and updating the "Last updated" date.
             </p>
           </div>
@@ -169,7 +176,7 @@ export function PrivacyPolicyScreen() {
               Contact Us
             </h3>
             <p className="text-sm text-gray-700 leading-relaxed mb-3">
-              If you have any questions about this privacy policy or our data practices, 
+              If you have any questions about this privacy policy or our data practices,
               please contact us at:
             </p>
             <a

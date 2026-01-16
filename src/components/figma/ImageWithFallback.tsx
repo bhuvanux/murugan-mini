@@ -14,12 +14,23 @@ export function ImageWithFallback(props: React.ImgHTMLAttributes<HTMLImageElemen
 
   return didError ? (
     <div
-      className={`inline-block bg-gray-100 text-center align-middle ${className ?? ''}`}
+      className={`relative overflow-hidden bg-[#e8f5e9] ${className ?? ''}`}
       style={style}
     >
-      <div className="flex items-center justify-center w-full h-full">
-        <img src={ERROR_IMG_SRC} alt="Error loading image" {...rest} data-original-url={src} />
-      </div>
+      <style>{`
+        @keyframes placeholder-shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+      `}</style>
+      <div
+        className="absolute inset-0 opacity-50"
+        style={{
+          background: 'linear-gradient(90deg, transparent 0%, #c8e6c9 50%, transparent 100%)',
+          backgroundSize: '200% 100%',
+          animation: 'placeholder-shimmer 2s linear infinite'
+        }}
+      />
     </div>
   ) : (
     <img src={src} alt={alt} className={className} style={style} {...rest} onError={handleError} />

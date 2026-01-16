@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Heart, Share2, ExternalLink } from 'lucide-react';
+import { analyticsTracker } from '../../utils/analytics/useAnalytics';
 
 interface SongCardProps {
   song: {
@@ -19,9 +20,48 @@ interface SongCardProps {
 export function SongCard({ song, onPlay, onShare, onLike }: SongCardProps) {
   const [isLiked, setIsLiked] = useState(false);
 
+  // Track view when component mounts
+  useEffect(() => {
+    analyticsTracker.track('song', song.id, 'view', {
+      title: song.title,
+      duration: song.duration,
+      has_thumbnail: !!song.thumbnail
+    }).catch(err => {
+      console.warn('Analytics track failed:', err);
+    });
+  }, [song.id, song.title, song.duration, song.thumbnail]);
+
   const handleLike = () => {
     setIsLiked(!isLiked);
+    
+    // Track like/unlike event
+    if (!isLiked) {
+      analyticsTracker.track('song', song.id, 'like').catch(console.warn);
+    } else {
+      analyticsTracker.untrack('song', song.id, 'like').catch(console.warn);
+    }
+    
     if (onLike) onLike();
+  };
+
+  const handlePlay = () => {
+    // Track play event
+    analyticsTracker.track('song', song.id, 'play').catch(console.warn);
+    
+    if (onPlay) onPlay();
+  };
+
+  const handleShare = () => {
+    // Track share event
+    analyticsTracker.track('song', song.id, 'share').catch(console.warn);
+    
+    if (onShare) onShare();
+  };
+
+  const handleOpenYouTube = () => {
+    // Track YouTube open event
+    analyticsTracker.track('song', song.id, 'open_in_youtube').catch(console.warn);
+    window.open(song.embedUrl, '_blank');
   };
 
   return (
@@ -38,7 +78,7 @@ export function SongCard({ song, onPlay, onShare, onLike }: SongCardProps) {
         
         {/* Play Button Overlay */}
         <div 
-          onClick={onPlay}
+          onClick={handlePlay}
           className="absolute inset-0 flex items-center justify-center bg-black/40 hover:bg-black/30 transition-colors cursor-pointer group"
         >
           <div className="w-14 h-14 rounded-full bg-[#0d5e38] flex items-center justify-center transform group-hover:scale-110 transition-transform shadow-lg">
@@ -76,7 +116,7 @@ export function SongCard({ song, onPlay, onShare, onLike }: SongCardProps) {
         {/* Action Buttons - Horizontal Layout */}
         <div className="flex items-center gap-2">
           <button
-            onClick={onPlay}
+            onClick={handlePlay}
             className="flex-1 bg-[#0d5e38] hover:bg-[#0a4a2a] text-white px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-1.5 transition-colors"
           >
             <Play className="w-3.5 h-3.5" fill="white" />
@@ -95,7 +135,7 @@ export function SongCard({ song, onPlay, onShare, onLike }: SongCardProps) {
           </button>
 
           <button
-            onClick={onShare}
+            onClick={handleShare}
             className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
           >
             <Share2 className="w-4 h-4" />
@@ -103,7 +143,7 @@ export function SongCard({ song, onPlay, onShare, onLike }: SongCardProps) {
 
           {song.embedUrl && (
             <button
-              onClick={() => window.open(song.embedUrl, '_blank')}
+              onClick={handleOpenYouTube}
               className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
             >
               <ExternalLink className="w-4 h-4" />

@@ -1,4 +1,5 @@
 import { projectId, publicAnonKey } from "./supabase/info";
+import { supabase } from "./supabase/client";
 
 export interface Banner {
   id: string;
@@ -10,7 +11,7 @@ export interface Banner {
   medium_url?: string;
   large_url?: string;
   original_url?: string;
-  type: "home" | "wallpaper" | "songs" | "photos" | "spark" | "temple";
+  type: "home" | "wallpaper" | "songs" | "photos" | "spark" | "temple" | "media" | "sparkle";
   category?: string;
   category_id?: string;
   visibility: "public" | "private";
@@ -22,6 +23,8 @@ export interface Banner {
   view_count: number;
   created_at: string;
   updated_at: string;
+  is_welcome_banner?: boolean;
+  display_orientation?: 'vertical' | 'horizontal';
 }
 
 const SUPABASE_URL = `https://${projectId}.supabase.co`;
@@ -35,7 +38,7 @@ export async function fetchModuleBanners(
 ): Promise<Banner[]> {
   try {
     console.log(`[Banner API] Fetching ALL banners (type filter removed)...`);
-    
+
     // Check cache first
     const cacheKey = `banners_all`;
     const cached = getBannersFromCache(cacheKey);
@@ -59,24 +62,26 @@ export async function fetchModuleBanners(
     }
 
     const result = await response.json();
-    
+
     if (!result.success || !result.banners) {
       console.log(`[Banner API] No banners found`);
       return [];
     }
-    
-    const banners: Banner[] = result.banners;
-    
-    console.log(`[Banner API] Fetched ${banners.length} banners from server (all types)`);
+
+    const banners: Banner[] = result.banners.filter((b: Banner) =>
+      b.type === bannerType && b.publish_status === 'published'
+    );
+
+    console.log(`[Banner API] Filtered to ${banners.length} '${bannerType}' banners`);
     console.log(`[Banner API] Sample banner URL:`, banners[0]?.original_url);
-    
+
     // Cache the results
     cacheBanners(cacheKey, banners);
-    
+
     return banners;
   } catch (error) {
     console.error(`[Banner API] Error fetching banners:`, error);
-    
+
     // Return cached data as fallback even if expired
     const cacheKey = `banners_all`;
     const fallback = getBannersFromCache(cacheKey, true);
@@ -145,7 +150,7 @@ export function invalidateBannerCache(bannerType?: Banner["type"]): void {
     localStorage.removeItem(`${cacheKey}_timestamp`);
   } else {
     // Clear all banner caches
-    const types: Banner["type"][] = ["home", "wallpaper", "songs", "photos", "spark", "temple"];
+    const types: Banner["type"][] = ["home", "wallpaper", "songs", "photos", "spark", "temple", "media", "sparkle"];
     types.forEach((type) => {
       const cacheKey = `banners_${type}`;
       localStorage.removeItem(cacheKey);
@@ -188,5 +193,69 @@ function getBannersFromCache(
   } catch (error) {
     console.warn("[Banner API] Failed to read cache:", error);
     return null;
+  }
+}
+
+/**
+ * Supabase Realtime subscription for banner changes
+ */
+let bannerSubscription: any = null;
+
+/**
+ * Subscribe to banner table changes via Supabase Realtime
+ */
+export function subscribeToBannerChanges(): void {
+  // Prevent duplicate subscriptions
+  if (bannerSubscription) {
+    console.log("[Banner API] Already subscribed to banner changes");
+    return;
+  }
+
+  console.log("[Banner API] Setting up Realtime subscription for banners...");
+
+  try {
+    bannerSubscription = supabase
+      .channel('banner_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'banners'
+        },
+        (payload) => {
+          console.log("[Banner API] Banner table changed:", payload);
+
+          // Invalidate all banner caches
+          invalidateBannerCache();
+
+          // Dispatch custom event for components to listen to
+          const event = new CustomEvent('bannersUpdated', {
+            detail: {
+              event: payload.eventType,
+              record: payload.new || payload.old
+            }
+          });
+          window.dispatchEvent(event);
+
+          console.log("[Banner API] ✅ Cache invalidated and event dispatched");
+        }
+      )
+      .subscribe((status) => {
+        console.log("[Banner API] Subscription status:", status);
+      });
+  } catch (error) {
+    console.error("[Banner API] Failed to set up Realtime subscription:", error);
+  }
+}
+
+/**
+ * Unsubscribe from banner table changes
+ */
+export function unsubscribeFromBannerChanges(): void {
+  if (bannerSubscription) {
+    console.log("[Banner API] Unsubscribing from banner changes...");
+    supabase.removeChannel(bannerSubscription);
+    bannerSubscription = null;
   }
 }

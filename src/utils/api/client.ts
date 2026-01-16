@@ -2,6 +2,7 @@
 // This connects the user panel to the admin backend
 
 import { apiCache } from './cache';
+import { optimizeSupabaseUrl } from "../imageHelper";
 import { projectId, publicAnonKey } from '../supabase/info'; // 🔥 FIX: Correct path (was './supabase/info')
 
 // Use the CORRECT credentials from info.tsx
@@ -70,6 +71,8 @@ export interface SparkleArticle {
   url: string;
   image: string;
   tags: string[];
+  videoUrl?: string; // ✅ Added videoUrl
+  thumbnailUrl?: string; // ✅ Added thumbnailUrl
 }
 
 // ========================================
@@ -79,10 +82,14 @@ export interface SparkleArticle {
 class UserAPI {
   private userToken: string | null = null;
 
-  setUserToken(token: string) {
+  setUserToken(token: string | null) {
     this.userToken = token;
     if (typeof window !== "undefined") {
-      localStorage.setItem("user_token", token);
+      if (token) {
+        localStorage.setItem("user_token", token);
+      } else {
+        localStorage.removeItem("user_token");
+      }
     }
   }
 
@@ -124,7 +131,7 @@ class UserAPI {
       // ✅ IMPORTANT: Backend DOES require Authorization header!
       // Use the correct anon key from info.tsx (not hardcoded)
       Authorization: `Bearer ${ADMIN_ANON_KEY}`,
-      ...(options.headers as Record<string, string>),
+      ...(options.headers as Record<string, string> || {}),
     };
 
     const token = this.getUserToken();
@@ -147,18 +154,29 @@ class UserAPI {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-        const response = await fetch(`${API_BASE}${endpoint}`, {
-          ...options,
-          headers,
-          signal: controller.signal,
-        });
+        const url = `${API_BASE}${endpoint}`;
+        const requestInit: RequestInit = {
+          method: options.method || 'GET',
+          headers: headers,
+        };
+
+        // Add safety check for debugging
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[API] Request init:', { url, method: requestInit.method, headers: requestInit.headers });
+        }
+
+        const response = await fetch(url, requestInit);
 
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          const error = await response
-            .json()
-            .catch(() => ({ message: "Request failed" }));
+          const errorText = await response.text().catch(() => "Unknown error");
+          let error: any;
+          try {
+            error = JSON.parse(errorText);
+          } catch (e) {
+            error = { message: errorText || "Request failed" };
+          }
 
           // Check if it's an authentication error (unauthorized/invalid token)
           const isAuthError = error.error === 'unauthorized' ||
@@ -522,7 +540,7 @@ class UserAPI {
       // Gracefully handle auth errors for likes
       console.warn(`[UserAPI] Like failed (may need auth):`, error);
       // Return success locally even if backend fails
-      return { success: false, error: error.message };
+      return { success: false, error: (error as any).message };
     }
   }
 
@@ -543,7 +561,7 @@ class UserAPI {
       };
     } catch (error) {
       console.warn(`[UserAPI] Unlike failed:`, error);
-      return { success: false, error: error.message };
+      return { success: false, error: (error as any).message };
     }
   }
 
@@ -626,8 +644,22 @@ class UserAPI {
   }
 
   // ========================================
+  // SUPPORT MESSAGES
+  // ========================================
+
+  async sendSupportMessage(subject: string, message: string) {
+    const user_id = localStorage.getItem('murugan_user_id') || this.getAnonymousUserId();
+    return this.request<any>(`/api/support/message`, {
+      method: "POST",
+      body: JSON.stringify({ subject, message, user_id }),
+    }, 0, false);
+  }
+
+  // ========================================
   // DATA TRANSFORMERS (Arrow functions to preserve 'this')
   // ========================================
+
+  // Optimize URL helper moved to src/utils/imageHelper.ts
 
   private transformMediaToUserFormat = (
     adminMedia: any,
@@ -651,7 +683,7 @@ class UserAPI {
 
     // Try ALL possible field name variations from different backends
     // For videos, prioritize video_url
-    const imageUrl = adminMedia.video_url || // Video URL takes priority for videos
+    const rawImageUrl = adminMedia.video_url || // Video URL takes priority for videos
       adminMedia.url ||
       adminMedia.imageUrl ||
       adminMedia.image_url ||
@@ -663,6 +695,15 @@ class UserAPI {
       adminMedia.large_url ||
       "";
 
+    // IMAGE OPTIMIZATION:
+    // storage_path -> Original, high-quality URL for downloads
+    // thumbnail_url -> Optimized version for feed displays
+    const isVideo = adminMedia.is_video || adminMedia.type === "video";
+
+    // 1. Get the Original URL (Always use /object/public/ for the source of truth)
+    const originalUrl = rawImageUrl;
+
+    // 2. Create the display/thumbnail URL (Optimized)
     const thumbUrl = adminMedia.thumbnail ||
       adminMedia.thumbnailUrl ||
       adminMedia.thumbnail_url ||
@@ -670,17 +711,17 @@ class UserAPI {
       adminMedia.small_url ||
       adminMedia.mediumUrl ||
       adminMedia.medium_url ||
-      imageUrl || // Fallback to main image
+      (isVideo ? rawImageUrl : optimizeSupabaseUrl(rawImageUrl, 600)) || // Thumbnails around 600px
       "";
 
     const result = {
       id: adminMedia.id,
-      type:
+      type: (
         adminMedia.is_video || adminMedia.type === "video"
           ? "video"
           : adminMedia.type === "photo"
             ? "image"
-            : "image",
+            : "image") as "video" | "image",
       is_video: adminMedia.is_video || false, // ✅ Add is_video field
       video_url: adminMedia.video_url || null, // ✅ Add video_url field
       title: adminMedia.title || "Untitled",
@@ -689,7 +730,7 @@ class UserAPI {
       uploader: adminMedia.uploadedBy || adminMedia.uploader || adminMedia.uploaded_by || "unknown",
       created_at:
         adminMedia.uploadedAt || adminMedia.uploaded_at || adminMedia.created_at || adminMedia.createdAt || new Date().toISOString(),
-      storage_path: imageUrl,
+      storage_path: originalUrl, // Original URL for HQ downloads
       thumbnail_url: thumbUrl,
       duration_seconds: adminMedia.duration || adminMedia.duration_seconds || 0,
       downloadable: adminMedia.downloadable !== false && !adminMedia.isPremium,
@@ -771,20 +812,46 @@ class UserAPI {
       subtitle: adminSparkle.subtitle,
       cover_image_url: adminSparkle.cover_image_url,
       thumbnail_url: adminSparkle.thumbnail_url,
+      video_url: adminSparkle.video_url,
+      file_url: adminSparkle.file_url,
       publish_status: adminSparkle.publish_status
     });
 
+    // Ensure URLs are optimized and fully qualified
+    const imageUrl = optimizeSupabaseUrl(adminSparkle.cover_image_url || adminSparkle.thumbnail_url || adminSparkle.image_url || "");
+
+    // Robust video URL detection: Check ALL possible fields for video extensions
+    let rawVideoUrl = adminSparkle.video_url || adminSparkle.file_url;
+
+    // Check if cover_image_url is actually a video
+    const isVideoExtension = (url: string) => url && url.match(/\.(mp4|mov|webm|mkv|avi|m4v)$/i);
+
+    if (!rawVideoUrl && isVideoExtension(adminSparkle.cover_image_url)) {
+      rawVideoUrl = adminSparkle.cover_image_url;
+    }
+
+    // Final check for type field
+    const isVideo = !!rawVideoUrl || adminSparkle.type === 'video' || isVideoExtension(adminSparkle.cover_image_url);
+
+    const videoUrl = rawVideoUrl ? optimizeSupabaseUrl(rawVideoUrl) :
+      (isVideoExtension(adminSparkle.cover_image_url) ? optimizeSupabaseUrl(adminSparkle.cover_image_url) : undefined);
+
+    const thumbUrl = adminSparkle.thumbnail_url ? optimizeSupabaseUrl(adminSparkle.thumbnail_url) : imageUrl;
+
+    // Use empty string for missing titles to allow conditional hiding in SparkScreen
     return {
       id: adminSparkle.id,
-      type: "article",
-      title: adminSparkle.title || "Untitled",
-      snippet: adminSparkle.subtitle || adminSparkle.content?.substring(0, 200) || "",
-      content: adminSparkle.content || "",
-      source: "Murugan Wallpapers",
+      type: videoUrl ? "video" : "article",
+      title: adminSparkle.title || "",
+      snippet: adminSparkle.subtitle || adminSparkle.description || adminSparkle.content?.substring(0, 200) || "",
+      content: adminSparkle.content || adminSparkle.description || "",
+      source: adminSparkle.source || "Murugan Wallpapers",
       publishedAt: adminSparkle.published_at || adminSparkle.created_at || new Date().toISOString(),
-      url: "#", // No external URL for sparkles
-      image: adminSparkle.cover_image_url || adminSparkle.thumbnail_url || "",
+      url: adminSparkle.external_link || "#",
+      image: imageUrl,
       tags: Array.isArray(adminSparkle.tags) ? adminSparkle.tags : [],
+      videoUrl: videoUrl,
+      thumbnailUrl: thumbUrl
     };
   };
 

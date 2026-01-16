@@ -1,0 +1,21 @@
+/* Animation for in-app notification banner */
+@keyframes slide-down {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.animate-slide-down {
+    animation: slide-down 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Safe area padding for notifications at top of screen */
+.top-safe {
+    top: env(safe-area-inset-top, 0px);
+}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { UploadModal } from "./UploadModal";
+import { AddBannerModal } from "./AddBannerModal";
 import { DatabaseSetupGuide } from "./DatabaseSetupGuide";
 import { BannerDatabaseChecker } from "./BannerDatabaseChecker";
 import * as adminAPI from "../../utils/adminAPI";
@@ -30,43 +30,43 @@ export function AdminBannerManagerNew() {
     try {
       setIsLoading(true);
       console.log('[AdminBannerManager] Starting to load banners...');
-      
+
       const result = await adminAPI.getBanners(
         filter !== "all" ? { publishStatus: filter } : undefined
       );
-      
+
       console.log("[AdminBannerManager] Loaded banners:", result);
       setBanners(result.data || []);
-      
+
       if (result.data?.length === 0) {
         toast.info("No banners found. Upload your first banner!");
       } else {
         toast.success(`Loaded ${result.data.length} banners`);
       }
-      
+
       // Hide database setup if data loaded successfully
       setShowDatabaseSetup(false);
     } catch (error: any) {
       console.error("[AdminBannerManager] Load error:", error);
-      
+
       // Show database setup guide if error indicates missing tables
       if (
-        error.message.includes("Failed to fetch") || 
-        error.message.includes("500") || 
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("500") ||
         error.message.includes("relation") ||
         error.message.includes("schema cache") ||
         error.message.includes("Could not find the table")
       ) {
         setShowDatabaseSetup(true);
       }
-      
+
       // Show detailed error message
       const errorMessage = error.message || "Failed to load banners";
       toast.error("Database tables not found", {
         duration: 8000,
         description: "Please follow the setup guide above to create the database tables.",
       });
-      
+
       // Set empty array so UI doesn't break
       setBanners([]);
     } finally {
@@ -81,7 +81,7 @@ export function AdminBannerManagerNew() {
   const handleTogglePublish = async (banner: Banner) => {
     try {
       const newStatus = banner.publish_status === "published" ? "draft" : "published";
-      
+
       await adminAPI.updateBanner(banner.id, {
         publish_status: newStatus,
       });
@@ -171,31 +171,28 @@ export function AdminBannerManagerNew() {
       <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1">
         <button
           onClick={() => setFilter("all")}
-          className={`flex-1 py-2 px-4 rounded text-inter-medium-16 transition-all ${
-            filter === "all"
-              ? "bg-green-600 text-white"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
+          className={`flex-1 py-2 px-4 rounded text-inter-medium-16 transition-all ${filter === "all"
+            ? "bg-green-600 text-white"
+            : "text-gray-600 hover:bg-gray-100"
+            }`}
         >
           All ({banners.length})
         </button>
         <button
           onClick={() => setFilter("published")}
-          className={`flex-1 py-2 px-4 rounded text-inter-medium-16 transition-all ${
-            filter === "published"
-              ? "bg-green-600 text-white"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
+          className={`flex-1 py-2 px-4 rounded text-inter-medium-16 transition-all ${filter === "published"
+            ? "bg-green-600 text-white"
+            : "text-gray-600 hover:bg-gray-100"
+            }`}
         >
           Published
         </button>
         <button
           onClick={() => setFilter("draft")}
-          className={`flex-1 py-2 px-4 rounded text-inter-medium-16 transition-all ${
-            filter === "draft"
-              ? "bg-green-600 text-white"
-              : "text-gray-600 hover:bg-gray-100"
-          }`}
+          className={`flex-1 py-2 px-4 rounded text-inter-medium-16 transition-all ${filter === "draft"
+            ? "bg-green-600 text-white"
+            : "text-gray-600 hover:bg-gray-100"
+            }`}
         >
           Drafts
         </button>
@@ -242,11 +239,10 @@ export function AdminBannerManagerNew() {
                 {/* Status Badge */}
                 <div className="absolute top-3 right-3">
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium text-inter-medium-16 ${
-                      banner.publish_status === "published"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-yellow-100 text-yellow-700"
-                    }`}
+                    className={`px-3 py-1 rounded-full text-xs font-medium text-inter-medium-16 ${banner.publish_status === "published"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-yellow-100 text-yellow-700"
+                      }`}
                   >
                     {banner.publish_status}
                   </span>
@@ -288,11 +284,10 @@ export function AdminBannerManagerNew() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleTogglePublish(banner)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors text-inter-medium-16 ${
-                      banner.publish_status === "published"
-                        ? "border-yellow-300 text-yellow-700 hover:bg-yellow-50"
-                        : "border-green-300 text-green-700 hover:bg-green-50"
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg border transition-colors text-inter-medium-16 ${banner.publish_status === "published"
+                      ? "border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+                      : "border-green-300 text-green-700 hover:bg-green-50"
+                      }`}
                   >
                     {banner.publish_status === "published" ? (
                       <>
@@ -320,13 +315,11 @@ export function AdminBannerManagerNew() {
       )}
 
       {/* Upload Modal */}
-      <UploadModal
+      <AddBannerModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onSuccess={loadBanners}
-        title="Banner"
-        uploadType="banner"
-        uploadFunction={adminAPI.uploadBanner}
+        folders={[]}
       />
     </div>
   );

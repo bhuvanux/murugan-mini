@@ -1,15 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Murugan AI</title>
-    </head>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d5e38" />
+  <title>Tamil Kadavul Murugan</title>
 
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-    </body>
-  </html>
-  
+  <!-- Google Analytics for Android App -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-YZ1K6J9JH"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-YZ1K6J9JH', {
+      app_name: 'Tamil Kadavul Murugan',
+      app_version: '1.0.0',
+      platform: 'Android',
+      debug_mode: true
+    });
+  </script>
+</head>
+
+<body>
+  <script>
+    window.global = window;
+    window.onerror = function (message, source, lineno, colno, error) {
+      if (message && (message.includes('ResizeObserver loop completed') || message.includes('ResizeObserver loop limit exceeded'))) {
+        console.warn("Ignored benign ResizeObserver error:", message);
+        return false;
+      }
+      alert("CRASH: " + message + "\nLine: " + lineno);
+      console.error("CRASH:", error);
+    };
+    window.onunhandledrejection = function (event) {
+      alert("PROMISE REJECTION: " + event.reason);
+      console.error("PROMISE REJECTION:", event.reason);
+    };
+  </script>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

@@ -20,7 +20,9 @@ CREATE TABLE media (
   duration_seconds INTEGER,
   downloadable BOOLEAN DEFAULT true,
   views INTEGER DEFAULT 0,
-  likes INTEGER DEFAULT 0
+  likes INTEGER DEFAULT 0,
+  original_size_bytes BIGINT,
+  optimized_size_bytes BIGINT
 );
 
 CREATE INDEX idx_media_created_at ON media(created_at DESC);

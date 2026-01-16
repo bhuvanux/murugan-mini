@@ -6,15 +6,17 @@ import {
   trackBannerClick,
   trackBannerView,
   getOptimalBannerImage,
+  subscribeToBannerChanges,
+  unsubscribeFromBannerChanges,
 } from "../utils/bannerAPI";
 
 interface ModuleBannerCarouselProps {
   bannerType:
-    | "wallpaper"
-    | "photos"
-    | "media"
-    | "sparkle"
-    | "home";
+  | "wallpaper"
+  | "photos"
+  | "media"
+  | "sparkle"
+  | "home";
   onBannerClick?: (bannerId: string) => void;
 }
 
@@ -57,13 +59,34 @@ export function ModuleBannerCarousel({
         );
       }
 
-      setBanners(data);
+      setBanners(data.filter(b => !b.is_welcome_banner));
     } catch (error) {
       console.error("[Banner Carousel] ❌ Failed to load banners:", error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Subscribe to real-time banner changes
+  useEffect(() => {
+    // Set up Supabase Realtime subscription
+    subscribeToBannerChanges();
+
+    // Listen for custom bannersUpdated event
+    const handleBannerUpdate = () => {
+      console.log("[Banner Carousel] Banners updated - reloading...");
+      loadBanners();
+    };
+
+    window.addEventListener('bannersUpdated', handleBannerUpdate);
+
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener('bannersUpdated', handleBannerUpdate);
+      unsubscribeFromBannerChanges();
+    };
+  }, []);
+
 
   // Auto-scroll every 5 seconds
   useEffect(() => {
@@ -109,7 +132,7 @@ export function ModuleBannerCarousel({
   // Handle touch start
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
-    
+
     // Pause auto-scroll when user touches
     if (autoScrollTimerRef.current) {
       clearInterval(autoScrollTimerRef.current);
@@ -176,9 +199,20 @@ export function ModuleBannerCarousel({
   };
 
   // Track view when banner changes
+  // Track unique views per session
+  const viewedBannersRef = useRef<Set<string>>(new Set());
+
+  // Track view when banner changes
   useEffect(() => {
     if (banners.length > 0 && currentIndex < banners.length) {
-      trackBannerView(banners[currentIndex].id);
+      const bannerId = banners[currentIndex].id;
+
+      // Only track if not already tracked in this session
+      if (!viewedBannersRef.current.has(bannerId)) {
+        console.log(`[Banner Carousel] Tracking UNIQUE view for: ${bannerId}`);
+        trackBannerView(bannerId);
+        viewedBannersRef.current.add(bannerId);
+      }
     }
   }, [currentIndex, banners]);
 
@@ -196,7 +230,7 @@ export function ModuleBannerCarousel({
   }
 
   return (
-    <div className="w-full p-[5px]">
+    <div className="w-full p-[5px] mt-3">
       {/* Horizontal Scrollable Banner */}
       <div className="relative">
         <div
@@ -251,8 +285,8 @@ export function ModuleBannerCarousel({
                         width: currentIndex === dotIndex ? "20px" : "6px",
                         height: "6px",
                         borderRadius: "3px",
-                        backgroundColor: currentIndex === dotIndex 
-                          ? "rgba(255, 255, 255, 0.95)" 
+                        backgroundColor: currentIndex === dotIndex
+                          ? "rgba(255, 255, 255, 0.95)"
                           : "rgba(255, 255, 255, 0.4)",
                       }}
                       aria-label={`Go to banner ${dotIndex + 1}`}

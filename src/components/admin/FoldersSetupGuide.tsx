@@ -2,14 +2,28 @@ import React, { useState } from "react";
 import { AlertCircle, Copy, CheckCircle, Database, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
-export function FoldersSetupGuide() {
+interface FoldersSetupGuideProps {
+  contentType?: "wallpapers" | "media" | "sparkle" | "banners";
+}
+
+export function FoldersSetupGuide({ contentType = "wallpapers" }: FoldersSetupGuideProps) {
   const [copied, setCopied] = useState(false);
+
+  const isMedia = contentType === "media";
+  const isSparkle = contentType === "sparkle";
+  const isBanner = contentType === "banners";
+
+  const mainTable = isSparkle ? "sparkle" : (isMedia ? "media" : (isBanner ? "banners" : "wallpapers"));
+  const folderTable = isSparkle ? "sparkle_folders" : (isMedia ? "media_folders" : (isBanner ? "banner_folders" : "wallpaper_folders"));
+  const analyticsTable = isSparkle ? "sparkle_analytics" : (isMedia ? "media_analytics" : (isBanner ? "banner_analytics" : "wallpaper_analytics"));
+  const idColumn = isSparkle ? "sparkle_id" : (isMedia ? "media_id" : (isBanner ? "banner_id" : "wallpaper_id"));
+  const functionPrefix = isSparkle ? "increment_sparkle" : (isMedia ? "increment_media" : (isBanner ? "increment_banner" : "increment_wallpaper"));
 
   const sqlScript = `-- Quick Setup: Run this SQL in Supabase
 -- Copy ALL of this and paste in Supabase SQL Editor → Click RUN
 
--- 1. Create wallpaper_folders table
-CREATE TABLE IF NOT EXISTS wallpaper_folders (
+-- 1. Create ${folderTable} table
+CREATE TABLE IF NOT EXISTS ${folderTable} (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   description TEXT,
@@ -17,10 +31,10 @@ CREATE TABLE IF NOT EXISTS wallpaper_folders (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Create wallpaper_analytics table
-CREATE TABLE IF NOT EXISTS wallpaper_analytics (
+-- 2. Create ${analyticsTable} table
+CREATE TABLE IF NOT EXISTS ${analyticsTable} (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  wallpaper_id UUID NOT NULL REFERENCES wallpapers(id) ON DELETE CASCADE,
+  ${idColumn} UUID NOT NULL REFERENCES ${mainTable}(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL CHECK (event_type IN ('view', 'download', 'like', 'share')),
   user_id UUID,
   session_id TEXT,
@@ -28,72 +42,76 @@ CREATE TABLE IF NOT EXISTS wallpaper_analytics (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. Add folder_id to wallpapers table
+-- 3. Add folder_id to ${mainTable} table
 DO $$ 
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'wallpapers' AND column_name = 'folder_id'
+    WHERE table_name = '${mainTable}' AND column_name = 'folder_id'
   ) THEN
-    ALTER TABLE wallpapers ADD COLUMN folder_id UUID REFERENCES wallpaper_folders(id) ON DELETE SET NULL;
+    ALTER TABLE ${mainTable} ADD COLUMN folder_id UUID REFERENCES ${folderTable}(id) ON DELETE SET NULL;
   END IF;
 END $$;
 
--- 4. Add counter columns to wallpapers if missing
+-- 4. Add counter columns to ${mainTable} if missing
 DO $$ 
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'wallpapers' AND column_name = 'view_count') THEN
-    ALTER TABLE wallpapers ADD COLUMN view_count INTEGER DEFAULT 0 NOT NULL;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '${mainTable}' AND column_name = 'view_count') THEN
+    ALTER TABLE ${mainTable} ADD COLUMN view_count INTEGER DEFAULT 0 NOT NULL;
   END IF;
   
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'wallpapers' AND column_name = 'download_count') THEN
-    ALTER TABLE wallpapers ADD COLUMN download_count INTEGER DEFAULT 0 NOT NULL;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '${mainTable}' AND column_name = 'download_count') THEN
+    ALTER TABLE ${mainTable} ADD COLUMN download_count INTEGER DEFAULT 0 NOT NULL;
   END IF;
   
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'wallpapers' AND column_name = 'like_count') THEN
-    ALTER TABLE wallpapers ADD COLUMN like_count INTEGER DEFAULT 0 NOT NULL;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '${mainTable}' AND column_name = 'like_count') THEN
+    ALTER TABLE ${mainTable} ADD COLUMN like_count INTEGER DEFAULT 0 NOT NULL;
   END IF;
   
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'wallpapers' AND column_name = 'share_count') THEN
-    ALTER TABLE wallpapers ADD COLUMN share_count INTEGER DEFAULT 0 NOT NULL;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '${mainTable}' AND column_name = 'share_count') THEN
+    ALTER TABLE ${mainTable} ADD COLUMN share_count INTEGER DEFAULT 0 NOT NULL;
   END IF;
 END $$;
 
 -- 5. Create increment functions
-CREATE OR REPLACE FUNCTION increment_wallpaper_views(wallpaper_id UUID)
+DROP FUNCTION IF EXISTS ${functionPrefix}_views(uuid);
+CREATE OR REPLACE FUNCTION ${functionPrefix}_views(target_id UUID)
 RETURNS VOID AS $$
 BEGIN
-  UPDATE wallpapers SET view_count = view_count + 1 WHERE id = wallpaper_id;
+  UPDATE ${mainTable} SET view_count = view_count + 1 WHERE id = target_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION increment_wallpaper_downloads(wallpaper_id UUID)
+DROP FUNCTION IF EXISTS ${functionPrefix}_downloads(uuid);
+CREATE OR REPLACE FUNCTION ${functionPrefix}_downloads(target_id UUID)
 RETURNS VOID AS $$
 BEGIN
-  UPDATE wallpapers SET download_count = download_count + 1 WHERE id = wallpaper_id;
+  UPDATE ${mainTable} SET download_count = download_count + 1 WHERE id = target_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION increment_wallpaper_likes(wallpaper_id UUID)
+DROP FUNCTION IF EXISTS ${functionPrefix}_likes(uuid);
+CREATE OR REPLACE FUNCTION ${functionPrefix}_likes(target_id UUID)
 RETURNS VOID AS $$
 BEGIN
-  UPDATE wallpapers SET like_count = like_count + 1 WHERE id = wallpaper_id;
+  UPDATE ${mainTable} SET like_count = like_count + 1 WHERE id = target_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION increment_wallpaper_shares(wallpaper_id UUID)
+DROP FUNCTION IF EXISTS ${functionPrefix}_shares(uuid);
+CREATE OR REPLACE FUNCTION ${functionPrefix}_shares(target_id UUID)
 RETURNS VOID AS $$
 BEGIN
-  UPDATE wallpapers SET share_count = share_count + 1 WHERE id = wallpaper_id;
+  UPDATE ${mainTable} SET share_count = share_count + 1 WHERE id = target_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 6. Create indexes
-CREATE INDEX IF NOT EXISTS idx_wallpaper_folders_created_at ON wallpaper_folders(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_wallpapers_folder_id ON wallpapers(folder_id);
-CREATE INDEX IF NOT EXISTS idx_wallpaper_analytics_wallpaper_id ON wallpaper_analytics(wallpaper_id);
-CREATE INDEX IF NOT EXISTS idx_wallpaper_analytics_event_type ON wallpaper_analytics(event_type);
-CREATE INDEX IF NOT EXISTS idx_wallpaper_analytics_created_at ON wallpaper_analytics(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_${folderTable}_created_at ON ${folderTable}(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_${mainTable}_folder_id ON ${mainTable}(folder_id);
+CREATE INDEX IF NOT EXISTS idx_${analyticsTable}_target_id ON ${analyticsTable}(${idColumn});
+CREATE INDEX IF NOT EXISTS idx_${analyticsTable}_event_type ON ${analyticsTable}(event_type);
+CREATE INDEX IF NOT EXISTS idx_${analyticsTable}_created_at ON ${analyticsTable}(created_at DESC);
 
 -- 7. Create trigger
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -104,19 +122,35 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS update_wallpaper_folders_updated_at ON wallpaper_folders;
-CREATE TRIGGER update_wallpaper_folders_updated_at
-  BEFORE UPDATE ON wallpaper_folders
+DROP TRIGGER IF EXISTS update_${folderTable}_updated_at ON ${folderTable};
+CREATE TRIGGER update_${folderTable}_updated_at
+  BEFORE UPDATE ON ${folderTable}
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
 -- 8. Grant permissions
-GRANT ALL ON wallpaper_folders TO service_role;
-GRANT ALL ON wallpaper_analytics TO service_role;
-GRANT EXECUTE ON FUNCTION increment_wallpaper_views TO service_role;
-GRANT EXECUTE ON FUNCTION increment_wallpaper_downloads TO service_role;
-GRANT EXECUTE ON FUNCTION increment_wallpaper_likes TO service_role;
-GRANT EXECUTE ON FUNCTION increment_wallpaper_shares TO service_role;`;
+GRANT ALL ON ${folderTable} TO service_role;
+GRANT ALL ON ${analyticsTable} TO service_role;
+GRANT EXECUTE ON FUNCTION ${functionPrefix}_views TO service_role;
+GRANT EXECUTE ON FUNCTION ${functionPrefix}_downloads TO service_role;
+GRANT EXECUTE ON FUNCTION ${functionPrefix}_likes TO service_role;
+GRANT EXECUTE ON FUNCTION ${functionPrefix}_shares TO service_role;
+
+-- 9. Add compression stats columns if missing
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '${mainTable}' AND column_name = 'original_size_bytes') THEN
+    ALTER TABLE ${mainTable} ADD COLUMN original_size_bytes BIGINT;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '${mainTable}' AND column_name = 'optimized_size_bytes') THEN
+    ALTER TABLE ${mainTable} ADD COLUMN optimized_size_bytes BIGINT;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = '${mainTable}' AND column_name = 'metadata') THEN
+    ALTER TABLE ${mainTable} ADD COLUMN metadata JSONB DEFAULT '{}';
+  END IF;
+END $$;`;
 
   const handleCopy = async () => {
     try {
@@ -135,7 +169,7 @@ GRANT EXECUTE ON FUNCTION increment_wallpaper_shares TO service_role;`;
         <div className="p-3 bg-orange-100 rounded-xl">
           <Database className="w-6 h-6 text-orange-600" />
         </div>
-        
+
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-3">
             <AlertCircle className="w-5 h-5 text-orange-600" />
@@ -143,7 +177,7 @@ GRANT EXECUTE ON FUNCTION increment_wallpaper_shares TO service_role;`;
               Database Tables Required
             </h3>
           </div>
-          
+
           <p className="text-orange-800 mb-2 text-inter-regular-14">
             The folder management and analytics features require additional database tables.
           </p>

@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
+import { generateVideoThumbnail } from "../../utils/videoHelper";
+
+import * as adminAPI from "../../utils/adminAPI";
+import { supabase } from "../../utils/supabase/client";
 
 type MediaType = "song" | "video";
 type UploadMode = "youtube" | "file";
@@ -20,6 +24,7 @@ interface AddMediaModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  mediaType?: MediaType;
 }
 
 interface YouTubeFetchResult {
@@ -29,10 +34,10 @@ interface YouTubeFetchResult {
   duration?: number;
 }
 
-export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps) {
-  const [activeTab, setActiveTab] = useState<MediaType>("song");
+export function AddMediaModal({ isOpen, onClose, onSuccess, mediaType }: AddMediaModalProps) {
+  const [activeTab, setActiveTab] = useState<MediaType>(mediaType || "song");
   const [uploadMode, setUploadMode] = useState<UploadMode>("youtube");
-  
+
   // Form state
   const [title, setTitle] = useState("");
   const [youtubeLink, setYoutubeLink] = useState("");
@@ -42,12 +47,12 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
   const [schedulePost, setSchedulePost] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
-  
+
   // File upload state
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-  
+
   // Fetch state
   const [isFetching, setIsFetching] = useState(false);
   const [fetchedData, setFetchedData] = useState<YouTubeFetchResult | null>(null);
@@ -79,7 +84,7 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
 
       // ✅ FIX: Use clean URL - remove any "blob:" prefix if present
       const cleanUrl = youtubeLink.replace(/^blob:/, '').trim();
-      
+
       // Call backend to fetch YouTube metadata
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-4a075ebc/api/youtube/fetch`,
@@ -128,10 +133,13 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
       return;
     }
 
+    // Category is now optional
+    /*
     if (!selectedCategory) {
       toast.error("Please select a category");
       return;
     }
+    */
 
     if (uploadMode === "youtube" && !youtubeLink.trim()) {
       toast.error("Please enter a YouTube URL");
@@ -161,16 +169,16 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
 
       const formData = new FormData();
       formData.append("title", title);
-      
+
       // ✅ FIX: For YouTube uploads, send mediaType="youtube"
       // For file uploads, send "audio" or "video"
       if (uploadMode === "youtube") {
         formData.append("mediaType", "youtube");
-        
+
         // Also include the actual type (audio/video) for categorization
         const contentType = activeTab === "song" ? "audio" : "video";
         formData.append("contentType", contentType);
-        
+
         // ✅ FIX: Remove any "blob:" prefix
         const cleanUrl = youtubeLink.replace(/^blob:/, '').trim();
         formData.append("youtubeUrl", cleanUrl);
@@ -181,15 +189,63 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
         // File upload mode
         const backendMediaType = activeTab === "song" ? "audio" : "video";
         formData.append("mediaType", backendMediaType);
-        
+
         if (activeTab === "song" && audioFile) {
           formData.append("file", audioFile);
         }
         if (activeTab === "video" && videoFile) {
           formData.append("file", videoFile);
+
+          // Auto-generate thumbnail if not provided manually
+          if (!thumbnailFile) {
+            try {
+              toast.info("Generating video thumbnail...");
+              const generatedThumbnail = await generateVideoThumbnail(videoFile);
+              formData.append("thumbnail", generatedThumbnail);
+            } catch (error) {
+              console.warn("Failed to generate video thumbnail", error);
+            }
+          }
         }
         if (thumbnailFile) {
           formData.append("thumbnail", thumbnailFile);
+        }
+      }
+
+      // ROBUST UPLOAD FIX: Upload thumbnail separately if it exists
+      if (uploadMode === "file" && (thumbnailFile || formData.get("thumbnail"))) {
+        const thumbFileToUpload = thumbnailFile || formData.get("thumbnail") as File;
+
+        if (thumbFileToUpload instanceof File) {
+          try {
+            console.log("[AddMedia] Uploading thumbnail artifact...");
+            toast.info("Uploading thumbnail...");
+
+            const thumbData = {
+              title: `THUMB_${title || 'Media'}`,
+              description: "Media Thumbnail Artifact",
+              publishStatus: "published", // FIX: Must be published for public access
+              folder_id: null
+            };
+
+            // Use uploadWallpaper (reliable)
+            const thumbResponse = await adminAPI.uploadWallpaper(thumbFileToUpload, thumbData);
+
+            if (thumbResponse.success && thumbResponse.data) {
+              const record = Array.isArray(thumbResponse.data) ? thumbResponse.data[0] : thumbResponse.data;
+              const thumbUrl = record.image_url || record.url || record.file_url;
+
+              if (thumbUrl) {
+                console.log("[AddMedia] Thumbnail uploaded:", thumbUrl);
+                const cleanUrl = thumbUrl.split('?')[0];
+                formData.append("thumbnailUrl", cleanUrl);
+                formData.delete("thumbnail");
+                toast.success("Thumbnail ready");
+              }
+            }
+          } catch (e) {
+            console.warn("[AddMedia] Thumbnail artifact upload failed", e);
+          }
         }
       }
 
@@ -203,6 +259,18 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
         formData.append("scheduledAt", `${scheduleDate}T${scheduleTime}`);
       } else {
         formData.append("publishStatus", "published");
+      }
+
+      // Add file size metadata
+      const mediaFile = activeTab === "song" ? audioFile : videoFile;
+      if (mediaFile) {
+        formData.append("original_size_bytes", mediaFile.size.toString());
+        formData.append("metadata", JSON.stringify({
+          original_size: mediaFile.size,
+          optimized_size: mediaFile.size, // No current compression for raw media
+          is_compressed: false,
+          mime_type: mediaFile.type
+        }));
       }
 
       console.log("[AddMedia] Calling upload API...");
@@ -232,11 +300,37 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
           isDraft
             ? "Media saved as draft!"
             : schedulePost
-            ? "Media scheduled successfully!"
-            : "Media uploaded successfully!"
+              ? "Media scheduled successfully!"
+              : "Media uploaded successfully!"
         );
-        onSuccess(); // Refresh the media list
+        onSuccess?.(); // Refresh the media list
         handleClose();
+
+        // 2-STEP PERSISTENCE FIX: Explicitly update the record with thumbnail_url
+        // This ensures the thumbnail is linked even if the upload endpoint ignored it.
+        const thumbUrl = formData.get("thumbnailUrl");
+        if (thumbUrl && typeof thumbUrl === "string") {
+          try {
+            // Handle both single object and array return types
+            const mediaId = result.data?.id || (Array.isArray(result.data) ? result.data[0]?.id : null);
+            if (mediaId) {
+              console.log("[AddMedia] Explicitly linking thumbnail to new media (Direct DB):", mediaId);
+              // Call DB directly to bypass potential API 404s
+              const { error: updateError } = await supabase
+                .from('media')
+                .update({ thumbnail_url: thumbUrl })
+                .eq('id', mediaId);
+
+              if (updateError) {
+                console.error("[AddMedia] Direct DB update failed:", updateError);
+              } else {
+                console.log("[AddMedia] Thumbnail linked successfully via direct DB update");
+              }
+            }
+          } catch (e) {
+            console.warn("[AddMedia] Failed to explicitly link thumbnail", e);
+          }
+        }
       } else {
         throw new Error(result.error || "Upload failed");
       }
@@ -285,22 +379,20 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
         <div className="flex gap-2 px-6 pt-6 bg-gray-50">
           <button
             onClick={() => setActiveTab("song")}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-t-xl font-semibold transition-all ${
-              activeTab === "song"
-                ? "bg-white text-purple-700 shadow-sm"
-                : "bg-transparent text-gray-600 hover:bg-white/50"
-            }`}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-t-xl font-semibold transition-all ${activeTab === "song"
+              ? "bg-white text-purple-700 shadow-sm"
+              : "bg-transparent text-gray-600 hover:bg-white/50"
+              }`}
           >
             <Music className="w-5 h-5" />
             Songs
           </button>
           <button
             onClick={() => setActiveTab("video")}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-t-xl font-semibold transition-all ${
-              activeTab === "video"
-                ? "bg-white text-purple-700 shadow-sm"
-                : "bg-transparent text-gray-600 hover:bg-white/50"
-            }`}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-t-xl font-semibold transition-all ${activeTab === "video"
+              ? "bg-white text-purple-700 shadow-sm"
+              : "bg-transparent text-gray-600 hover:bg-white/50"
+              }`}
           >
             <Video className="w-5 h-5" />
             Videos
@@ -317,22 +409,20 @@ export function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps
             <div className="flex gap-3">
               <button
                 onClick={() => setUploadMode("youtube")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-medium transition-all ${
-                  uploadMode === "youtube"
-                    ? "border-purple-600 bg-purple-50 text-purple-700"
-                    : "border-gray-300 text-gray-600 hover:border-purple-300"
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-medium transition-all ${uploadMode === "youtube"
+                  ? "border-purple-600 bg-purple-50 text-purple-700"
+                  : "border-gray-300 text-gray-600 hover:border-purple-300"
+                  }`}
               >
                 <Youtube className="w-5 h-5" />
                 YouTube Link
               </button>
               <button
                 onClick={() => setUploadMode("file")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-medium transition-all ${
-                  uploadMode === "file"
-                    ? "border-purple-600 bg-purple-50 text-purple-700"
-                    : "border-gray-300 text-gray-600 hover:border-purple-300"
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-medium transition-all ${uploadMode === "file"
+                  ? "border-purple-600 bg-purple-50 text-purple-700"
+                  : "border-gray-300 text-gray-600 hover:border-purple-300"
+                  }`}
               >
                 <Upload className="w-5 h-5" />
                 Upload File

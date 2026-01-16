@@ -4,14 +4,19 @@
 
 /* Inter Font for English - ALL WEIGHTS */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Outfit:wght@100..900&display=swap');
 
 :root {
   --font-size: 16px;
   /* PRIMARY RULE: English = Inter, Tamil = TAU-Paalai */
-  --font-tamil: 'TAU-Paalai', sans-serif;         /* Tamil uses TAU-Paalai */
-  --font-tamil-bold: 'TAU-Paalai', sans-serif;     /* Legacy support */
-  --font-tamil-regular: 'TAU-Paalai', sans-serif;  /* Legacy support - NOW USES TAU-Paalai */
-  --font-english: 'Inter', sans-serif;             /* English uses Inter */
+  --font-tamil: 'TAU-Paalai', sans-serif;
+  /* Tamil uses TAU-Paalai */
+  --font-tamil-bold: 'TAU-Paalai', sans-serif;
+  /* Legacy support */
+  --font-tamil-regular: 'TAU-Paalai', sans-serif;
+  /* Legacy support - NOW USES TAU-Paalai */
+  --font-english: 'Inter', sans-serif;
+  /* English uses Inter */
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -127,6 +132,27 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Sewvee Design Tokens */
+  --color-primary-light: #D1FAE5;
+  --color-primary: #0E9F8A;
+  --color-primary-dark: #0B7F6E;
+
+  --color-sewvee-bg: #F9FAFB;
+  --color-sewvee-card: #FFFFFF;
+  --color-sewvee-border: #E5E7EB;
+  --color-sewvee-text-primary: #111827;
+  --color-sewvee-text-secondary: #4B5563;
+  --color-sewvee-danger: #DC2626;
+
+  --radius-sewvee: 16px;
+  --radius-sewvee-inner: 10px;
+
+  --shadow-sewvee-subtle: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sewvee-medium: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+  --font-playfair: "Playfair Display", serif;
+  --font-outfit: "Outfit", sans-serif;
 }
 
 @layer base {
@@ -206,6 +232,7 @@ html {
 
 /* Global Font Utility Classes */
 @layer utilities {
+
   /* Inter Text Styles - Global Admin Panel Typography */
   .text-inter-regular-14 {
     font-family: var(--font-english);
@@ -213,112 +240,142 @@ html {
     font-size: 14px;
     line-height: 1.5;
   }
-  
+
   .text-inter-regular-15 {
     font-family: var(--font-english);
     font-weight: 400;
     font-size: 15px;
     line-height: 1.5;
   }
-  
+
   .text-inter-medium-16 {
     font-family: var(--font-english);
     font-weight: 500;
     font-size: 16px;
     line-height: 1.5;
   }
-  
+
   .text-inter-semibold-18 {
     font-family: var(--font-english);
     font-weight: 600;
     font-size: 18px;
     line-height: 1.4;
   }
-  
+
   .text-inter-bold-20 {
     font-family: var(--font-english);
     font-weight: 700;
     font-size: 20px;
     line-height: 1.3;
   }
-  
+
   /* Tamil Title Fonts - ALL use TAU-Paalai */
   .font-tamil-title {
     font-family: var(--font-tamil);
     font-weight: 700;
   }
-  
+
   .font-tamil-subtitle {
     font-family: var(--font-tamil);
     font-weight: 600;
   }
-  
+
   .font-tamil-body {
     font-family: var(--font-tamil);
     font-weight: 400;
   }
-  
+
   /* English Fonts - ALL use Inter */
   .font-english-title {
     font-family: var(--font-english);
     font-weight: 600;
   }
-  
+
   .font-english-label {
     font-family: var(--font-english);
     font-weight: 500;
   }
-  
+
   .font-english-body {
     font-family: var(--font-english);
     font-weight: 400;
   }
-  
+
   /* Auto-detect font based on Unicode */
   .font-auto {
     font-family: var(--font-english);
   }
-  
+
   .font-auto:lang(ta) {
     font-family: var(--font-tamil);
   }
 
   /* Hide scrollbars for horizontal scroll containers */
   .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari and Opera */
+    display: none;
+    /* Chrome, Safari and Opera */
   }
 
   /* Spotify-style playing animation bars */
   @keyframes playing-bar-1 {
-    0%, 100% { height: 25%; }
-    50% { height: 100%; }
+
+    0%,
+    100% {
+      height: 25%;
+    }
+
+    50% {
+      height: 100%;
+    }
   }
-  
+
   @keyframes playing-bar-2 {
-    0%, 100% { height: 75%; }
-    25% { height: 100%; }
-    75% { height: 25%; }
+
+    0%,
+    100% {
+      height: 75%;
+    }
+
+    25% {
+      height: 100%;
+    }
+
+    75% {
+      height: 25%;
+    }
   }
-  
+
   @keyframes playing-bar-3 {
-    0%, 100% { height: 50%; }
-    33% { height: 25%; }
-    66% { height: 100%; }
+
+    0%,
+    100% {
+      height: 50%;
+    }
+
+    33% {
+      height: 25%;
+    }
+
+    66% {
+      height: 100%;
+    }
   }
-  
+
   .animate-playing-bar-1 {
     animation: playing-bar-1 0.8s ease-in-out infinite;
   }
-  
+
   .animate-playing-bar-2 {
     animation: playing-bar-2 0.9s ease-in-out infinite;
   }
-  
+
   .animate-playing-bar-3 {
     animation: playing-bar-3 1s ease-in-out infinite;
   }
@@ -328,11 +385,12 @@ html {
     from {
       transform: translateY(100%);
     }
+
     to {
       transform: translateY(0);
     }
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.3s ease-out;
   }
@@ -354,5 +412,103 @@ html {
     background: white;
     cursor: pointer;
     border: none;
+  }
+
+  /* Notification Animations */
+  @keyframes slideDown {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideOut {
+    from {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    to {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+  }
+
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0;
+    }
+  }
+
+  .animate-slide-down {
+    animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out, scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes bannerIntro {
+    0% {
+      transform: translateY(-100%) scale(0.9) rotateX(-10deg);
+      opacity: 0;
+    }
+
+    60% {
+      transform: translateY(10%) scale(1.02) rotateX(2deg);
+    }
+
+    85% {
+      transform: translateY(-5%) scale(0.99) rotateX(-1deg);
+    }
+
+    100% {
+      transform: translateY(0) scale(1) rotateX(0deg);
+      opacity: 1;
+    }
+  }
+
+  .animate-banner-intro {
+    animation: bannerIntro 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+    perspective: 1000px;
+  }
+
+  .animate-slide-out {
+    animation: slideOut 0.3s ease-in;
+  }
+
+  .animate-fade-out {
+    animation: fadeOut 0.2s ease-out;
   }
 }

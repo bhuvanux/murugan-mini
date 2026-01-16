@@ -5,9 +5,10 @@ interface CountdownTimerBadgeProps {
   scheduledAt: string;
   wallpaperId?: string;
   onTimeUp?: (wallpaperId?: string) => void;
+  compact?: boolean;
 }
 
-export function CountdownTimerBadge({ scheduledAt, wallpaperId, onTimeUp }: CountdownTimerBadgeProps) {
+export function CountdownTimerBadge({ scheduledAt, wallpaperId, onTimeUp, compact = false }: CountdownTimerBadgeProps) {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [isExpired, setIsExpired] = useState(false);
 
@@ -49,15 +50,28 @@ export function CountdownTimerBadge({ scheduledAt, wallpaperId, onTimeUp }: Coun
     const interval = setInterval(calculateTimeLeft, 1000);
 
     return () => clearInterval(interval);
-  }, [scheduledAt, onTimeUp]);
+  }, [scheduledAt, onTimeUp, wallpaperId]);
+
+  if (compact) {
+    return (
+      <div
+        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${isExpired
+            ? "bg-green-100 text-green-700"
+            : "bg-blue-100 text-blue-700"
+          }`}
+      >
+        <Clock className="w-3 h-3" />
+        <span>{isExpired ? "Publishing..." : timeLeft}</span>
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-        isExpired
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${isExpired
           ? "bg-green-100 text-green-700"
           : "bg-blue-100 text-blue-700"
-      }`}
+        }`}
     >
       <Clock className="w-3.5 h-3.5" />
       <span>{isExpired ? "Publishing..." : `${timeLeft} left`}</span>

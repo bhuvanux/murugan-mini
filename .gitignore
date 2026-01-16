@@ -9,3 +9,7 @@ android/.gradle
 android/local.properties
 ios/App/App/public
 *.log
+
+# Security
+android/fastlane/fastlane_json_key.json
+service-account.json

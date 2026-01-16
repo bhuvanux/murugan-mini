@@ -11,6 +11,7 @@ import {
   Loader2,
   BarChart3,
   MessageCircle,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -22,24 +23,26 @@ interface SparkleAnalytics {
   title: string;
   image_url: string;
   thumbnail_url?: string;
-  
+
   date_range?: {
     start: string;
     end: string;
     days: number;
   };
-  
+
   // Core metrics
   total_views: number;
   total_likes: number;
   total_shares: number;
+  total_downloads: number;
   total_comments: number;
-  
+
   // Range-specific metrics
   range_views?: number;
   range_likes?: number;
   range_shares?: number;
-  
+  range_downloads?: number;
+
   // Time-based metrics
   views_today: number;
   views_week: number;
@@ -47,19 +50,24 @@ interface SparkleAnalytics {
   likes_today: number;
   likes_week: number;
   likes_month: number;
-  
+  downloads_today: number;
+  downloads_week: number;
+  downloads_month: number;
+
   // Engagement metrics
   engagement_rate: number;
+  download_rate: number;
   virality_score: number;
-  
+
   // Time series data
   daily_stats?: Array<{
     date: string;
     views: number;
     likes: number;
     shares: number;
+    downloads: number;
   }>;
-  
+
   created_at: string;
   last_interaction?: string;
 }
@@ -144,15 +152,15 @@ export function SparkleAnalyticsDrawer({
       />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full w-[500px] bg-white shadow-2xl z-50 overflow-y-auto">
+      <div className="fixed right-0 top-0 h-full w-[45vw] min-w-[500px] bg-white shadow-2xl z-50 overflow-y-auto border-l border-gray-200">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
+              <div className="p-2.5 bg-blue-100 rounded-xl">
+                <BarChart3 className="w-6 h-6 text-blue-600" />
               </div>
-              <h3 className="text-inter-bold-20 text-gray-800">Sparkle Analytics</h3>
+              <h3 className="text-inter-bold-24 text-gray-800">Sparkle Analytics</h3>
             </div>
             <button
               onClick={onClose}
@@ -161,7 +169,7 @@ export function SparkleAnalyticsDrawer({
               <X className="w-5 h-5" />
             </button>
           </div>
-          
+
           {/* Date Range Filter */}
           <DateRangeFilter
             onDateRangeChange={(start, end, preset) => {
@@ -196,42 +204,50 @@ export function SparkleAnalyticsDrawer({
               {/* Core Metrics */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Eye className="w-5 h-5 text-blue-600" />
-                    <span className="text-gray-600 text-inter-regular-14">Views</span>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2.5 bg-blue-50 rounded-xl">
+                      <Eye className="w-7 h-7 text-blue-600" />
+                    </div>
+                    <span className="text-gray-500 font-medium text-inter-medium-14">Views</span>
                   </div>
-                  <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
-                    {analytics.total_views.toLocaleString()}
+                  <p className="text-3xl font-bold text-gray-900 text-inter-bold-24">
+                    {(analytics.total_views || 0).toLocaleString()}
                   </p>
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Heart className="w-5 h-5 text-red-600" />
-                    <span className="text-gray-600 text-inter-regular-14">Likes</span>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2.5 bg-red-50 rounded-xl">
+                      <Heart className="w-7 h-7 text-red-600" />
+                    </div>
+                    <span className="text-gray-500 font-medium text-inter-medium-14">Likes</span>
                   </div>
-                  <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
-                    {analytics.total_likes.toLocaleString()}
+                  <p className="text-3xl font-bold text-gray-900 text-inter-bold-24">
+                    {(analytics.total_likes || 0).toLocaleString()}
                   </p>
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Share2 className="w-5 h-5 text-purple-600" />
-                    <span className="text-gray-600 text-inter-regular-14">Shares</span>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2.5 bg-purple-50 rounded-xl">
+                      <Share2 className="w-7 h-7 text-purple-600" />
+                    </div>
+                    <span className="text-gray-500 font-medium text-inter-medium-14">Shares</span>
                   </div>
-                  <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
-                    {analytics.total_shares.toLocaleString()}
+                  <p className="text-3xl font-bold text-gray-900 text-inter-bold-24">
+                    {(analytics.total_shares || 0).toLocaleString()}
                   </p>
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MessageCircle className="w-5 h-5 text-green-600" />
-                    <span className="text-gray-600 text-inter-regular-14">Comments</span>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2.5 bg-green-50 rounded-xl">
+                      <Download className="w-7 h-7 text-green-600" />
+                    </div>
+                    <span className="text-gray-500 font-medium text-inter-medium-14">Downloads</span>
                   </div>
-                  <p className="text-3xl font-bold text-gray-800 text-inter-bold-20">
-                    {analytics.total_comments.toLocaleString()}
+                  <p className="text-3xl font-bold text-gray-900 text-inter-bold-24">
+                    {(analytics.total_downloads || 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -239,62 +255,82 @@ export function SparkleAnalyticsDrawer({
               {/* Engagement Metrics */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <TrendingUp className="w-5 h-5 text-green-700" />
-                    <span className="text-green-800 font-medium text-inter-medium-16">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <TrendingUp className="w-6 h-6 text-green-700" />
+                    </div>
+                    <span className="text-green-800 font-bold text-inter-bold-14 uppercase tracking-wider">
                       Engagement Rate
                     </span>
                   </div>
-                  <p className="text-3xl font-bold text-green-900 text-inter-bold-20">
-                    {analytics.engagement_rate.toFixed(2)}%
+                  <p className="text-3xl font-black text-green-900 text-inter-bold-24">
+                    {(analytics.engagement_rate || 0).toFixed(2)}%
                   </p>
                 </div>
 
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users className="w-5 h-5 text-purple-700" />
-                    <span className="text-purple-800 font-medium text-inter-medium-16">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <Users className="w-6 h-6 text-purple-700" />
+                    </div>
+                    <span className="text-purple-800 font-bold text-inter-bold-14 uppercase tracking-wider">
                       Virality Score
                     </span>
                   </div>
-                  <p className="text-3xl font-bold text-purple-900 text-inter-bold-20">
-                    {analytics.virality_score.toFixed(1)}
+                  <p className="text-3xl font-black text-purple-900 text-inter-bold-24">
+                    {(analytics.virality_score || 0).toFixed(1)}
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Download className="w-6 h-6 text-blue-700" />
+                    </div>
+                    <span className="text-blue-800 font-bold text-inter-bold-14 uppercase tracking-wider">
+                      Download Rate
+                    </span>
+                  </div>
+                  <p className="text-3xl font-black text-blue-900 text-inter-bold-24">
+                    {(analytics.download_rate || 0).toFixed(2)}%
                   </p>
                 </div>
               </div>
 
               {/* Time-Based Metrics */}
               <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2 text-inter-semibold-18">
-                  <Clock className="w-5 h-5 text-gray-600" />
+                <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-3 text-inter-bold-18">
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    <Clock className="w-6 h-6 text-gray-600" />
+                  </div>
                   Time-Based Performance
                 </h3>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <p className="text-sm text-gray-600 mb-1 text-inter-regular-14">Today</p>
                     <p className="text-xl font-bold text-gray-800 text-inter-bold-20">
-                      {analytics.views_today} views
+                      {analytics.views_today || 0} views
                     </p>
                     <p className="text-sm text-gray-600 text-inter-regular-14">
-                      {analytics.likes_today} likes
+                      {analytics.likes_today || 0}L • {analytics.downloads_today || 0}D
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1 text-inter-regular-14">This Week</p>
                     <p className="text-xl font-bold text-gray-800 text-inter-bold-20">
-                      {analytics.views_week} views
+                      {analytics.views_week || 0} views
                     </p>
                     <p className="text-sm text-gray-600 text-inter-regular-14">
-                      {analytics.likes_week} likes
+                      {analytics.likes_week || 0}L • {analytics.downloads_week || 0}D
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1 text-inter-regular-14">This Month</p>
                     <p className="text-xl font-bold text-gray-800 text-inter-bold-20">
-                      {analytics.views_month} views
+                      {analytics.views_month || 0} views
                     </p>
                     <p className="text-sm text-gray-600 text-inter-regular-14">
-                      {analytics.likes_month} likes
+                      {analytics.likes_month || 0}L • {analytics.downloads_month || 0}D
                     </p>
                   </div>
                 </div>
@@ -311,16 +347,20 @@ export function SparkleAnalyticsDrawer({
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis
                         dataKey="date"
-                        tickFormatter={(date) =>
-                          new Date(date).toLocaleDateString("en-US", {
+                        tickFormatter={(date) => {
+                          const d = new Date(date);
+                          return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",
-                          })
-                        }
+                          });
+                        }}
                       />
                       <YAxis />
                       <Tooltip
-                        labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                        labelFormatter={(date) => {
+                          const d = new Date(date);
+                          return isNaN(d.getTime()) ? "Invalid Date" : d.toLocaleDateString();
+                        }}
                       />
                       <Legend />
                       <Line
@@ -343,6 +383,13 @@ export function SparkleAnalyticsDrawer({
                         stroke="#a855f7"
                         strokeWidth={2}
                         name="Shares"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="downloads"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        name="Downloads"
                       />
                     </LineChart>
                   </ResponsiveContainer>

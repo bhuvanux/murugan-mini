@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import imgMurugan from "figma:asset/aefa8dc74d7f949c3233faf44a28b2568db3db4f.png";
+import imgSplashLogo from "../assets/splash-logo.png";
 
 interface SplashScreenProps {
   onComplete?: () => void;
@@ -8,7 +8,7 @@ interface SplashScreenProps {
 export function SplashScreen({ onComplete }: SplashScreenProps) {
   useEffect(() => {
     if (!onComplete) return;
-    
+
     const timer = setTimeout(() => {
       onComplete();
     }, 2500);
@@ -17,13 +17,13 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
   }, [onComplete]);
 
   return (
-    <div className="bg-[#084C28] fixed inset-0 z-[9999] flex items-center justify-center">
-      {/* Centered Murugan Image */}
-      <div className="w-[240px] h-[240px]">
-        <img 
-          src={imgMurugan}
-          alt="Lord Murugan" 
-          className="w-full h-full object-contain"
+    <div className="bg-[#084C28] fixed inset-0 z-[9999] flex items-center justify-center p-8">
+      {/* Centered Splash Logo */}
+      <div className="w-full max-w-[280px] aspect-square relative animate-pulse">
+        <img
+          src={imgSplashLogo}
+          alt="Tamil Kadavul Murugan"
+          className="w-full h-full object-contain filter drop-shadow-2xl"
         />
       </div>
     </div>

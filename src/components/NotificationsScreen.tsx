@@ -16,7 +16,13 @@ type Notification = {
   icon: string;
 };
 
-export function NotificationsScreen() {
+import { AppHeader } from './AppHeader';
+
+interface NotificationsScreenProps {
+  onBack?: () => void;
+}
+
+export function NotificationsScreen({ onBack }: NotificationsScreenProps) {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -61,7 +67,7 @@ export function NotificationsScreen() {
     const date = new Date(timestamp);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return 'Just now';
     if (diffInHours < 24) return `${diffInHours}h ago`;
     const diffInDays = Math.floor(diffInHours / 24);
@@ -70,11 +76,9 @@ export function NotificationsScreen() {
   };
 
   return (
-    <div className="px-4 pb-20 bg-[#F2FFF6] min-h-screen" style={{ fontFamily: 'var(--font-english)' }}>
-      <div className="py-4">
-        <h2 className="text-[18px] mb-2" style={{ fontFamily: 'var(--font-english)', fontWeight: 700 }}>
-          Notifications
-        </h2>
+    <div className="bg-[#f8faf7] min-h-screen" style={{ fontFamily: 'var(--font-english)' }}>
+      <AppHeader title="Notifications" onBack={onBack} variant="primary" showKolam={true} />
+      <div className="px-4 pb-20" style={{ paddingTop: 'calc(92px + env(safe-area-inset-top))' }}>
         <p className="text-[14px] text-gray-600 mb-6" style={{ fontFamily: 'var(--font-english)' }}>
           Recent updates and alerts
         </p>
@@ -86,8 +90,8 @@ export function NotificationsScreen() {
               Recent Activity
             </h3>
             {notifications.map((notification) => (
-              <Card 
-                key={notification.id} 
+              <Card
+                key={notification.id}
                 className={`border-[#E6F0EA] ${notification.read ? 'bg-white' : 'bg-green-50/30'}`}
               >
                 <div className="p-4">
@@ -141,7 +145,7 @@ export function NotificationsScreen() {
               </div>
               <Switch
                 checked={pushNotifications}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   setPushNotifications(checked);
                   handleToggle('Push notifications', checked);
                 }}
@@ -159,7 +163,7 @@ export function NotificationsScreen() {
               </div>
               <Switch
                 checked={newSongsAlert}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   setNewSongsAlert(checked);
                   handleToggle('New songs alerts', checked);
                 }}
@@ -178,7 +182,7 @@ export function NotificationsScreen() {
               </div>
               <Switch
                 checked={newPhotosAlert}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   setNewPhotosAlert(checked);
                   handleToggle('New photos alerts', checked);
                 }}
@@ -209,7 +213,7 @@ export function NotificationsScreen() {
               </div>
               <Switch
                 checked={emailNotifications}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   setEmailNotifications(checked);
                   handleToggle('Email notifications', checked);
                 }}
@@ -239,7 +243,7 @@ export function NotificationsScreen() {
               </div>
               <Switch
                 checked={soundEnabled}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean) => {
                   setSoundEnabled(checked);
                   handleToggle('Notification sound', checked);
                 }}

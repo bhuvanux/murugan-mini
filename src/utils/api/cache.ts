@@ -78,7 +78,7 @@ class APICache {
   // Set pending request
   setPending<T>(endpoint: string, promise: Promise<T>): void {
     this.pendingRequests.set(endpoint, promise);
-    
+
     // Clean up when promise resolves
     promise.finally(() => {
       this.pendingRequests.delete(endpoint);
@@ -89,6 +89,18 @@ class APICache {
   clear(): void {
     this.cache.clear();
     console.log('[Cache] Cleared all entries');
+  }
+
+  // Clear EVERYTHING including localStorage (for admin reset)
+  clearAll(): void {
+    this.cache.clear();
+    this.pendingRequests.clear();
+    try {
+      localStorage.removeItem('api_cache');
+      console.log('[Cache] ✅ Cleared all in-memory cache AND localStorage');
+    } catch (error) {
+      console.error('[Cache] Failed to clear localStorage:', error);
+    }
   }
 
   // Clear specific endpoint
@@ -169,12 +181,12 @@ export const apiCache = new APICache();
 // Load cache on startup
 if (typeof window !== 'undefined') {
   apiCache.loadFromStorage();
-  
+
   // Save cache periodically
   setInterval(() => {
     apiCache.saveToStorage();
   }, 30000); // Every 30 seconds
-  
+
   // Save on page unload
   window.addEventListener('beforeunload', () => {
     apiCache.saveToStorage();
