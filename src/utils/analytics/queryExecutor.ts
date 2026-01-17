@@ -61,7 +61,8 @@ function buildRPCParams(template: QueryTemplate, userParams: QueryExecutionParam
     const rpcParams: any = {};
 
     // Process each parameter defined in the template
-    for (const param of template.parameters) {
+    const parameters = template.parameters || [];
+    for (const param of parameters) {
         let value = userParams[param.name] ?? param.default;
 
         // Parse date parameters

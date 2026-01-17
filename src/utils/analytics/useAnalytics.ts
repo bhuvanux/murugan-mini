@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { projectId, publicAnonKey } from '../supabase/info';
 import { useAuth } from '../../contexts/AuthContext';
+import { UAParser } from 'ua-parser-js';
 
 // Declare gtag for GA4
 declare global {
@@ -104,8 +105,29 @@ export function useAnalytics(moduleName: ModuleName, itemId?: string) {
       try {
         // Automatically inject user city and other common metadata
         const userCity = user?.user_metadata?.city || localStorage.getItem('last_selected_city');
+
+        // Parse Device Info
+        const parser = new UAParser();
+        const result = parser.getResult();
+        const isMobile = result.device.type === 'mobile' || result.device.type === 'tablet';
+
+        // Construct detailed device info
+        const deviceInfo = isMobile
+          ? `${result.device.vendor || ''} ${result.device.model || 'Unknown Mobile'}`.trim()
+          : `${result.os.name || 'Desktop'} (${result.browser.name || 'Unknown Browser'})`;
+
+        // Construct Platform (iOS, Android, Web)
+        const platform = result.os.name === 'iOS' || result.os.name === 'Android'
+          ? result.os.name
+          : 'Web';
+
         const enrichedMetadata = {
           city: userCity,
+          device_info: deviceInfo,
+          platform: platform,
+          device_model: result.device.model,
+          browser: result.browser.name,
+          os: result.os.name,
           ...metadata,
         };
 
@@ -394,8 +416,26 @@ export const analyticsTracker = {
         }
       }
 
+      // Parse Device Info (Static Tracker)
+      const parser = new UAParser();
+      const result = parser.getResult();
+      const isMobile = result.device.type === 'mobile' || result.device.type === 'tablet';
+
+      const deviceInfo = isMobile
+        ? `${result.device.vendor || ''} ${result.device.model || 'Unknown Mobile'}`.trim()
+        : `${result.os.name || 'Desktop'} (${result.browser.name || 'Unknown Browser'})`;
+
+      const platform = result.os.name === 'iOS' || result.os.name === 'Android'
+        ? result.os.name
+        : 'Web';
+
       const enrichedMetadata = {
         city: userCity || localStorage.getItem('last_selected_city'),
+        device_info: deviceInfo,
+        platform: platform,
+        device_model: result.device.model,
+        browser: result.browser.name,
+        os: result.os.name,
         ...metadata
       };
 

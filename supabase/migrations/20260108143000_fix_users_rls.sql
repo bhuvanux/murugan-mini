@@ -8,6 +8,7 @@ drop policy if exists "Admins can view all users" on public.users;
 -- Create new comprehensive policies
 
 -- 1. Service role has full access (for server functions and admin operations)
+drop policy if exists "Service role full access" on public.users;
 create policy "Service role full access"
   on public.users
   for all
@@ -16,6 +17,7 @@ create policy "Service role full access"
   with check ( true );
 
 -- 2. Authenticated users can view all users (for admin dashboard)
+drop policy if exists "Authenticated users can view users" on public.users;
 create policy "Authenticated users can view users"
   on public.users
   for select
@@ -23,6 +25,7 @@ create policy "Authenticated users can view users"
   using ( true );
 
 -- 3. Allow anon key with service role context (for admin dashboard direct queries)
+drop policy if exists "Allow public read for admin" on public.users;
 create policy "Allow public read for admin"
   on public.users
   for select  

@@ -15,6 +15,7 @@ import { AskGuganChatScreen } from "./components/AskGuganChatScreen";
 import { SavedScreen } from "./components/SavedScreen";
 import { NotificationsScreen } from "./components/NotificationsScreen";
 import { AccountSettingsScreen } from "./components/AccountSettingsScreen";
+import { SubscriptionScreen } from "./components/SubscriptionScreen";
 import { ContactScreen } from "./components/ContactScreen";
 import { PrivacyPolicyScreen } from "./components/PrivacyPolicyScreen";
 import { SearchBar } from "./components/SearchBar";
@@ -48,7 +49,7 @@ import { setupPushNotifications } from "./utils/pushNotifications";
 import { InAppBannerNotification } from "./components/InAppBannerNotification";
 import { FullscreenBannerNotification } from "./components/FullscreenBannerNotification";
 
-type Tab = "photos" | "songs" | "spark" | "profile" | "admin" | "saved" | "notifications" | "account" | "contact" | "privacy";
+type Tab = "photos" | "songs" | "spark" | "profile" | "admin" | "saved" | "notifications" | "account" | "contact" | "privacy" | "subscription";
 type AppMode = "launcher" | "mobile" | "admin";
 
 function AppContent() {
@@ -61,6 +62,15 @@ function AppContent() {
   });
   const [appMode, setAppMode] = useState<AppMode>(() => {
     if (Capacitor.isNativePlatform()) return "mobile";
+
+    // Force admin mode if on admin subdomain or Firebase hosting
+    const hostname = window.location.hostname;
+    if (hostname.includes('admin.tamilkadavulmurugan.com') ||
+      hostname.includes('tkm-admin') ||
+      hostname.includes('firebase')) {
+      return 'admin';
+    }
+
     // Check localStorage for persisted admin mode
     const savedMode = localStorage.getItem('app_mode');
     if (savedMode === 'admin') return 'admin';
@@ -97,6 +107,38 @@ function AppContent() {
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   const [tablesExist, setTablesExist] = useState<boolean | null>(null);
+
+  // Custom Navigation Listener
+  useEffect(() => {
+    const handleNavigation = (e: CustomEvent<Tab | 'settings' | 'favorites'>) => {
+      console.log('[App] Received navigation event:', e.detail);
+
+      // Handle subscription directly
+      if (e.detail === 'subscription') {
+        setActiveTab('subscription');
+        return;
+      }
+
+      // Handle mapped tabs
+      if (e.detail === 'settings') {
+        setActiveTab('account');
+        return;
+      }
+
+      if (e.detail === 'favorites') {
+        setActiveTab('saved');
+        return;
+      }
+
+      // Handle standard tabs
+      if (['photos', 'songs', 'spark', 'profile', 'saved', 'notifications', 'account', 'contact', 'privacy'].includes(e.detail)) {
+        setActiveTab(e.detail as Tab);
+      }
+    };
+
+    window.addEventListener('navigate_to', handleNavigation as EventListener);
+    return () => window.removeEventListener('navigate_to', handleNavigation as EventListener);
+  }, []);
 
   React.useEffect(() => {
     if (user) {
@@ -468,9 +510,26 @@ function AppContent() {
   }
 
   const renderActiveScreen = () => {
-    if (activeTab === "saved") return <SavedScreen onSelectMedia={handleMediaSelect} onBack={() => setActiveTab("profile")} />;
+    if (activeTab === "saved") return <SavedScreen onSelectMedia={handleMediaSelect} onPlaySong={handlePlaySong} onBack={() => setActiveTab("profile")} />;
     if (activeTab === "notifications") return <NotificationsScreen onBack={() => setActiveTab("profile")} />;
-    if (activeTab === "account") return <AccountSettingsScreen onBack={() => setActiveTab("profile")} />;
+    if (activeTab === "account") {
+      return (
+        <AccountSettingsScreen
+          onBack={() => setActiveTab("profile")}
+          onNavigate={(page) => {
+            if (page === 'subscription') setActiveTab('subscription');
+          }}
+        />
+      );
+    }
+    if (activeTab === "subscription") {
+      return (
+        <SubscriptionScreen
+          onBack={() => setActiveTab("account")}
+          onSuccess={() => setActiveTab("profile")}
+        />
+      );
+    }
     if (activeTab === "contact") return <ContactScreen onBack={() => setActiveTab("profile")} />;
     if (activeTab === "privacy") return <PrivacyPolicyScreen onBack={() => setActiveTab("profile")} />;
 
@@ -562,7 +621,8 @@ function AppContent() {
         />
       )}
 
-      {!isInnerPage && !selectedMedia && activeTab !== "spark" && currentSongIndex !== null && playerPlaylist.length > 0 && (
+      {/* Global Player - checking !selectedMedia ensuring it doesn't overlap full detail view, but allowing on inner pages */}
+      {!selectedMedia && activeTab !== "spark" && currentSongIndex !== null && playerPlaylist.length > 0 && (
         <YouTubeMusicPlayer
           songs={playerPlaylist as any}
           currentIndex={currentSongIndex}
@@ -575,6 +635,7 @@ function AppContent() {
           onToggleFavorite={toggleFavorite}
           onShare={(song) => console.log('Sharing from global player:', song)}
           favorites={favorites}
+          hasBottomNav={!isInnerPage}
         />
       )}
 

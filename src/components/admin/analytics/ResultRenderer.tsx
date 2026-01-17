@@ -88,25 +88,25 @@ export function ResultRenderer({
             {/* Clean Context Banner Sync'd with Storage Module */}
             <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-16">
+                    <div className="flex-1 grid grid-cols-3 gap-4 mr-16">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center shrink-0">
                                 <TrendingUp className="w-5 h-5 text-green-600" />
                             </div>
-                            <div>
-                                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-0.5">Active Query</p>
-                                <p className="text-sm font-semibold text-gray-900 leading-none">{result.metadata.queryName}</p>
+                            <div className="min-w-0">
+                                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-0.5 truncate">Active Query</p>
+                                <p className="text-sm font-semibold text-gray-900 leading-none truncate">{result.metadata.queryName}</p>
                             </div>
                         </div>
 
                         {result.metadata.timeRange && (
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center shrink-0">
                                     <Clock className="w-5 h-5 text-purple-600" />
                                 </div>
-                                <div>
-                                    <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-0.5">Time Range</p>
-                                    <p className="text-sm font-semibold text-gray-900 leading-none">{result.metadata.timeRange}</p>
+                                <div className="min-w-0">
+                                    <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-0.5 truncate">Time Range</p>
+                                    <p className="text-sm font-semibold text-gray-900 leading-none truncate">{result.metadata.timeRange}</p>
                                 </div>
                             </div>
                         )}
@@ -115,9 +115,9 @@ export function ResultRenderer({
                             <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
                                 <Database className="w-5 h-5 text-blue-600" />
                             </div>
-                            <div>
-                                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-0.5">Data Source</p>
-                                <p className="text-sm font-semibold text-gray-900 leading-none">{result.metadata.dataSource}</p>
+                            <div className="min-w-0">
+                                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-0.5 truncate">Data Source</p>
+                                <p className="text-sm font-semibold text-gray-900 leading-none truncate">{result.metadata.dataSource}</p>
                             </div>
                         </div>
                     </div>
@@ -254,9 +254,9 @@ function TableResult({ data }: { data: any[] }) {
                                 {col.replace(/_/g, ' ')}
                                 <div className="text-gray-400">
                                     {sortConfig?.key === col ? (
-                                        sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                                        sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3 text-gray-700" /> : <ChevronDown className="w-3 h-3 text-gray-700" />
                                     ) : (
-                                        <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-50" />
+                                        <ArrowUpDown className="w-3 h-3 text-gray-300" />
                                     )}
                                 </div>
                             </div>

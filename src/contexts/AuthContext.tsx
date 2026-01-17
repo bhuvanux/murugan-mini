@@ -13,6 +13,7 @@ type AuthContextType = {
   signOut: () => Promise<void>;
   updateProfile: (metadata: { name?: string; full_name?: string; city?: string; email?: string; avatar_url?: string }) => Promise<{ error: any }>;
   checkUserExists: (phone: string) => Promise<boolean>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -325,11 +326,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const { error } = await supabase.auth.updateUser({
+    const { data, error } = await supabase.auth.updateUser({
       data: metadata
     });
 
+    if (!error && data.user) {
+      setUser(data.user);
+      console.log('[AuthContext] Local user state updated immediately');
+
+      if (user.phone) {
+        // ✅ Explicitly sync to public.users table to ensure persistence
+        try {
+          const updates: any = {};
+          if (metadata.name || metadata.full_name) {
+            updates.name = metadata.name || metadata.full_name;
+            updates.full_name = metadata.full_name || metadata.name;
+          }
+          if (metadata.city) updates.city = metadata.city;
+          if (metadata.email) updates.email = metadata.email;
+
+          await supabase
+            .from('users')
+            .update(updates)
+            .eq('phone', user.phone);
+
+          console.log('[AuthContext] ✅ Synced detailed profile to public.users');
+        } catch (syncErr) {
+          console.error('[AuthContext] ⚠️ Failed to sync public.users:', syncErr);
+        }
+      }
+    }
+
     return { error };
+  };
+
+  const refreshProfile = async () => {
+    const { data: { user: textUser }, error } = await supabase.auth.getUser();
+    if (!error && textUser) {
+      setUser(textUser);
+      if (textUser.role === 'authenticated') {
+        // ensure consistency
+        if (textUser.id.startsWith('mock-')) return;
+        // maybe sync mock? no.
+      }
+    }
   };
 
   return (
@@ -341,7 +381,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithMock,
       signOut,
       updateProfile,
-      checkUserExists
+      checkUserExists,
+      refreshProfile
     }}>
       {children}
     </AuthContext.Provider>

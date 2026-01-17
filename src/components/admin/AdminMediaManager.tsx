@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw, BarChart3, FolderInput, Settings, CheckSquare, Square, Grid3x3, List, Calendar as CalendarIcon, Clock, Play, Download, AlertCircle, HardDrive, Database, Music, Heart, Share2, ExternalLink } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw, BarChart3, FolderInput, Settings, CheckSquare, Square, Grid3x3, List, Calendar as CalendarIcon, Clock, Play, Download, AlertCircle, HardDrive, Database, Music, Heart, Share2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { AddMediaModal } from "./AddMediaModal";
@@ -48,6 +48,8 @@ interface MediaFolder {
 }
 
 type ViewMode = "card" | "list";
+type SortField = "created_at" | "play_count" | "like_count" | "share_count" | "add_to_playlist_count" | "publish_status" | "compression";
+type SortDirection = "asc" | "desc";
 
 export function AdminMediaManager() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -60,6 +62,9 @@ export function AdminMediaManager() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [mediaType, setMediaType] = useState<"audio" | "video">("audio");
+
+  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // Date range filter for analytics
   const [startDate, setStartDate] = useState<Date | null>(() => {
@@ -495,14 +500,64 @@ export function AdminMediaManager() {
       filtered = filtered.filter(m => m.folder_id === selectedFolder);
     }
 
-    // Sort by created_at descending (newest first)
+    // Sort
     filtered = [...filtered].sort((a, b) => {
-      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return dateB - dateA;
+      let comparison = 0;
+
+      switch (sortField) {
+        case "created_at":
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case "play_count":
+          comparison = (a.play_count || 0) - (b.play_count || 0);
+          break;
+        case "like_count":
+          comparison = (a.like_count || 0) - (b.like_count || 0);
+          break;
+        case "share_count":
+          comparison = (a.share_count || 0) - (b.share_count || 0);
+          break;
+        case "add_to_playlist_count":
+          comparison = (a.add_to_playlist_count || 0) - (b.add_to_playlist_count || 0);
+          break;
+        case "publish_status":
+          comparison = a.publish_status.localeCompare(b.publish_status);
+          break;
+        case "compression":
+          const getRatio = (m: any) => {
+            const meta = m.metadata || {};
+            const original = meta.original_size;
+            const optimized = meta.optimized_size;
+
+            if (!original) return 0;
+            return original > 0 ? (1 - optimized / original) : 0;
+          };
+          comparison = getRatio(a) - getRatio(b);
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
     });
 
     return filtered;
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-gray-400 ml-1" />;
+    return sortDirection === "asc"
+      ? <ArrowUp className="w-3 h-3 text-green-600 ml-1" />
+      : <ArrowDown className="w-3 h-3 text-green-600 ml-1" />;
   };
 
   useEffect(() => {
@@ -1152,26 +1207,68 @@ export function AdminMediaManager() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         MEDIA
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        STATUS
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                        onClick={() => handleSort("publish_status")}
+                      >
+                        <div className="flex items-center">
+                          STATUS
+                          <SortIcon field="publish_status" />
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        PLAYS
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                        onClick={() => handleSort("play_count")}
+                      >
+                        <div className="flex items-center">
+                          PLAYS
+                          <SortIcon field="play_count" />
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        LIKES
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                        onClick={() => handleSort("like_count")}
+                      >
+                        <div className="flex items-center">
+                          LIKES
+                          <SortIcon field="like_count" />
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        SHARES
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                        onClick={() => handleSort("share_count")}
+                      >
+                        <div className="flex items-center">
+                          SHARES
+                          <SortIcon field="share_count" />
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        PLAYLIST
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                        onClick={() => handleSort("add_to_playlist_count")}
+                      >
+                        <div className="flex items-center">
+                          PLAYLIST
+                          <SortIcon field="add_to_playlist_count" />
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        COMPRESSION
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                        onClick={() => handleSort("compression")}
+                      >
+                        <div className="flex items-center">
+                          COMPRESSION
+                          <SortIcon field="compression" />
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        CREATED
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                        onClick={() => handleSort("created_at")}
+                      >
+                        <div className="flex items-center">
+                          CREATED
+                          <SortIcon field="created_at" />
+                        </div>
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         ACTIONS

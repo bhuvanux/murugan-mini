@@ -10,7 +10,9 @@ import {
   Plus,
   Edit,
   Trash2,
+  CreditCard,
 } from "lucide-react";
+import { AdminPayments } from "./AdminPayments";
 import {
   LineChart,
   Line,
@@ -27,7 +29,7 @@ import {
 } from "recharts";
 
 export function AdminSubscriptions() {
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "coupons" | "campaigns">(
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "payments" | "coupons" | "campaigns">(
     "overview"
   );
 
@@ -48,6 +50,7 @@ export function AdminSubscriptions() {
   const tabs = [
     { id: "overview" as const, label: "Overview" },
     { id: "users" as const, label: "Premium Users" },
+    { id: "payments" as const, label: "Payments" },
     { id: "coupons" as const, label: "Coupons" },
     { id: "campaigns" as const, label: "Campaigns" },
   ];
@@ -70,11 +73,10 @@ export function AdminSubscriptions() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.id
+            className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
                 ? "bg-green-600 text-white shadow-sm"
                 : "text-gray-700 hover:bg-gray-100"
-            }`}
+              }`}
           >
             {tab.label}
           </button>

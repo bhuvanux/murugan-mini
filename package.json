@@ -66,6 +66,7 @@
             "sharp": "*",
             "sonner": "^2.0.3",
             "tailwind-merge": "*",
+            "ua-parser-js": "^2.0.8",
             "url": "*",
             "vaul": "^1.1.2"
       },
@@ -74,11 +75,13 @@
             "@capacitor/assets": "^3.0.5",
             "@capacitor/cli": "^8.0.0",
             "@types/node": "^20.10.0",
+            "@types/ua-parser-js": "^0.7.39",
             "@vitejs/plugin-react-swc": "^3.10.2",
             "vite": "6.3.5"
       },
       "scripts": {
             "dev": "vite",
+            "build:admin": "VITE_BASE_PATH=/ vite build --outDir dist_admin --emptyOutDir",
             "build": "vite build"
       }
 }

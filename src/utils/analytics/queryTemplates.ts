@@ -94,46 +94,46 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
     {
         id: 'auth_logins_today',
         name: 'Logins Today',
-        description: 'Total successful login attempts today',
+        description: 'Detailed log of successful logins today',
         category: 'auth',
         tier: 1,
-        rpcFunction: 'get_auth_stats_v3',
-        resultType: 'kpi',
+        rpcFunction: 'get_auth_events',
+        resultType: 'table',
         dataSource: 'auth_events',
-        metricKey: 'total_logins',
         parameters: [
             { name: 'start_date', type: 'date', required: true, default: 'today' },
-            { name: 'end_date', type: 'date', required: true, default: 'now' }
+            { name: 'end_date', type: 'date', required: true, default: 'now' },
+            { name: 'event_type', type: 'string', required: false, default: 'logins' }
         ]
     },
     {
         id: 'auth_logins_yesterday',
         name: 'Logins Yesterday',
-        description: 'Total successful login attempts yesterday',
+        description: 'Detailed log of successful logins yesterday',
         category: 'auth',
         tier: 1,
-        rpcFunction: 'get_auth_stats_v3',
-        resultType: 'kpi',
+        rpcFunction: 'get_auth_events',
+        resultType: 'table',
         dataSource: 'auth_events',
-        metricKey: 'total_logins',
         parameters: [
             { name: 'start_date', type: 'date', required: true, default: 'yesterday' },
-            { name: 'end_date', type: 'date', required: true, default: 'yesterday_end' }
+            { name: 'end_date', type: 'date', required: true, default: 'yesterday_end' },
+            { name: 'event_type', type: 'string', required: false, default: 'logins' }
         ]
     },
     {
         id: 'auth_signups_today',
         name: 'New Signups Today',
-        description: 'Users who completed signup today',
+        description: 'Detailed log of new users registered today',
         category: 'auth',
         tier: 1,
-        rpcFunction: 'get_auth_stats_v3',
-        resultType: 'kpi',
+        rpcFunction: 'get_auth_events',
+        resultType: 'table',
         dataSource: 'auth_events',
-        metricKey: 'total_signups',
         parameters: [
             { name: 'start_date', type: 'date', required: true, default: 'today' },
-            { name: 'end_date', type: 'date', required: true, default: 'now' }
+            { name: 'end_date', type: 'date', required: true, default: 'now' },
+            { name: 'event_type', type: 'string', required: false, default: 'signups' }
         ]
     },
     {
@@ -143,7 +143,7 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
         category: 'auth',
         tier: 1,
         rpcFunction: 'get_auth_stats_v3',
-        resultType: 'kpi',
+        resultType: 'table',
         dataSource: 'auth_events',
         metricKey: 'otp_success_rate',
         parameters: [
@@ -158,7 +158,7 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
         category: 'auth',
         tier: 1,
         rpcFunction: 'get_auth_stats_v3',
-        resultType: 'kpi',
+        resultType: 'table',
         dataSource: 'auth_events',
         metricKey: 'otp_success_rate',
         parameters: [
@@ -298,7 +298,7 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
         category: 'users',
         tier: 1,
         rpcFunction: 'get_auth_stats_v3',
-        resultType: 'kpi',
+        resultType: 'table',
         dataSource: 'auth_events',
         metricKey: 'active_today_2min',
         parameters: [
@@ -341,7 +341,7 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
         category: 'users',
         tier: 1,
         rpcFunction: 'get_auth_stats_v3',
-        resultType: 'kpi',
+        resultType: 'table',
         dataSource: 'users',
         metricKey: 'total_users',
         parameters: [
@@ -460,9 +460,10 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
         description: 'Total wallpaper views',
         category: 'content',
         tier: 2,
-        rpcFunction: 'get_peak_modules',
-        resultType: 'kpi',
+        rpcFunction: 'get_content_stats',
+        resultType: 'table',
         dataSource: 'auth_events',
+        metricKey: 'wallpapers_viewed',
         parameters: [
             { name: 'start_date', type: 'date', required: true, default: 'today' },
             { name: 'end_date', type: 'date', required: true, default: 'now' }
@@ -488,9 +489,10 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
         description: 'Sparkle content interactions',
         category: 'content',
         tier: 2,
-        rpcFunction: 'get_peak_modules',
-        resultType: 'kpi',
+        rpcFunction: 'get_content_stats',
+        resultType: 'table',
         dataSource: 'auth_events',
+        metricKey: 'sparkle_views',
         parameters: [
             { name: 'start_date', type: 'date', required: true, default: '7d_ago' },
             { name: 'end_date', type: 'date', required: true, default: 'now' }
@@ -502,12 +504,11 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
         description: 'Daily content interactions',
         category: 'content',
         tier: 2,
-        rpcFunction: 'get_peak_modules',
+        rpcFunction: 'get_content_trends',
         resultType: 'chart',
         dataSource: 'auth_events',
         parameters: [
-            { name: 'start_date', type: 'date', required: true, default: '30d_ago' },
-            { name: 'end_date', type: 'date', required: true, default: 'now' }
+            { name: 'days_ago', type: 'number', required: true, default: 30 }
         ]
     },
     {
@@ -797,20 +798,24 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
         description: 'System errors and failures',
         category: 'health',
         tier: 3,
-        rpcFunction: 'get_security_alerts',
-        resultType: 'table',
-        dataSource: 'auth_events',
-        parameters: []
+        rpcFunction: 'get_system_health',
+        resultType: 'kpi',
+        dataSource: 'analytics_tracking',
+        metricKey: 'error_count',
+        parameters: [
+            { name: 'start_date', type: 'date', required: true, default: 'today' },
+            { name: 'end_date', type: 'date', required: true, default: 'now' }
+        ]
     },
     {
         id: 'health_overall_summary',
         name: 'System Health Summary',
-        description: 'Overall app health metrics',
+        description: 'Errors, Latency, and Crashes',
         category: 'health',
         tier: 2,
-        rpcFunction: 'get_auth_stats_v3',
+        rpcFunction: 'get_system_health',
         resultType: 'table',
-        dataSource: 'auth_events',
+        dataSource: 'analytics_tracking',
         parameters: [
             { name: 'start_date', type: 'date', required: true, default: 'today' },
             { name: 'end_date', type: 'date', required: true, default: 'now' }

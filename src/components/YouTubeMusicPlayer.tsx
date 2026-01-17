@@ -22,6 +22,7 @@ export interface YouTubeMusicPlayerProps {
   onToggleFavorite?: (songId: string) => void;
   onShare?: (song: YouTubeSong) => void;
   favorites?: Set<string>;
+  hasBottomNav?: boolean;
 }
 
 // Helper to extract YouTube ID from URL or return the ID itself
@@ -60,6 +61,7 @@ export function YouTubeMusicPlayer({
   onToggleFavorite,
   onShare,
   favorites = new Set(),
+  hasBottomNav = true,
 }: YouTubeMusicPlayerProps) {
   // ... state ...
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -215,9 +217,11 @@ export function YouTubeMusicPlayer({
     <div
       className={`fixed transition-all duration-300 ease-in-out z-[9999] overflow-hidden ${isExpanded
         ? 'inset-0 bg-black'
-        : 'left-0 right-0 bottom-[80px] h-16 bg-black rounded-t-2xl shadow-2xl border-t border-white/10'
+        : `left-0 right-0 h-16 bg-black rounded-t-2xl shadow-2xl border-t border-white/10 ${hasBottomNav ? 'bottom-[80px]' : 'bottom-0'}`
         }`}
-      style={!isExpanded ? { bottom: 'calc(env(safe-area-inset-bottom) + 80px)' } : {}}
+      style={!isExpanded ? {
+        bottom: hasBottomNav ? 'calc(env(safe-area-inset-bottom) + 80px)' : 'env(safe-area-inset-bottom)'
+      } : {}}
     >
 
       {/* 1. Header (Expanded Only) */}
@@ -280,6 +284,45 @@ export function YouTubeMusicPlayer({
               </button>
               <button onClick={handleNext} className="p-3 hover:bg-white/10 rounded-full"><SkipForward className="w-8 h-8 text-white" /></button>
             </div>
+
+            {/* UP NEXT QUEUE (Pinterest/TikTok Style) */}
+            <div className="w-full max-w-md pb-12 mt-8 border-t border-white/10 pt-6">
+              <h3 className="text-white/80 text-sm font-bold uppercase tracking-wider mb-4 px-2">Up Next</h3>
+              <div className="space-y-2">
+                {songs.slice(currentIndex + 1).concat(songs.slice(0, currentIndex)).filter((_, i) => i < 20).map((song, i) => {
+                  // Calculate actual index in the original array
+                  // Logic: The list shows song[current+1] ... song[end], then song[0] ... song[current-1]
+                  // Actually, let's just show standard queue: Next 20 songs
+                  const realIndex = (currentIndex + 1 + i) % songs.length;
+                  const isMatch = realIndex === currentIndex; // Should not happen with slice logic above but good safety
+
+                  return (
+                    <div
+                      key={`${song.id}-${i}`}
+                      onClick={() => onSongChange?.(realIndex)}
+                      className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 active:scale-98 transition-all cursor-pointer group"
+                    >
+                      <ImageWithFallback
+                        src={song.thumbnail || getThumbnail(song.embedUrl)}
+                        alt={song.title}
+                        className="w-12 h-12 rounded-lg object-cover bg-white/5"
+                      />
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-white text-sm font-medium truncate group-hover:text-[#0d5e38] transition-colors">{song.title}</p>
+                        <p className="text-white/40 text-xs truncate">{song.description || "Devotional"}</p>
+                      </div>
+                      <button className="p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Play className="w-4 h-4 text-white fill-current" />
+                      </button>
+                    </div>
+                  );
+                })}
+                {songs.length <= 1 && (
+                  <p className="text-center text-white/30 text-sm py-8">End of playlist</p>
+                )}
+              </div>
+            </div>
+
           </div>
         </div>
       </div>

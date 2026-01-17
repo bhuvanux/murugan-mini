@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw, BarChart3, FolderInput, Settings, CheckSquare, Grid3x3, List, Calendar as CalendarIcon, Clock, Heart, Share2, Download, AlertCircle, HardDrive } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Loader2, RefreshCw, BarChart3, FolderInput, Settings, CheckSquare, Grid3x3, List, Calendar as CalendarIcon, Clock, Heart, Share2, Download, AlertCircle, HardDrive, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { AddSparkleModal } from "./AddSparkleModal";
 import { DatabaseSetupGuide } from "./DatabaseSetupGuide";
@@ -46,6 +46,8 @@ interface SparkleFolder {
 }
 
 type ViewMode = "card" | "list";
+type SortField = "created_at" | "view_count" | "like_count" | "share_count" | "download_count" | "publish_status" | "compression";
+type SortDirection = "asc" | "desc";
 
 // Helper to calculate compression stats
 const getCompressionInfo = (sparkle: any) => {
@@ -95,8 +97,11 @@ export function AdminSparkleManager() {
   const [activeTab, setActiveTab] = useState<"published" | "scheduled" | "draft">("published");
   const [showDatabaseSetup, setShowDatabaseSetup] = useState(false);
   const [showFoldersSetup, setShowFoldersSetup] = useState(false);
+
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // Date range filter for analytics
   const [startDate, setStartDate] = useState<Date | null>(() => {
@@ -453,7 +458,67 @@ export function AdminSparkleManager() {
     console.log(`[${execId}] Final filtered count:`, filtered.length);
     console.log(`[${execId}] Actual filtered array:`, filtered);
     console.log(`[${execId}] About to return filtered`);
+
+    // Sort
+    filtered = [...filtered].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case "created_at":
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case "view_count":
+          comparison = (a.view_count || 0) - (b.view_count || 0);
+          break;
+        case "like_count":
+          comparison = (a.like_count || 0) - (b.like_count || 0);
+          break;
+        case "share_count":
+          comparison = (a.share_count || 0) - (b.share_count || 0);
+          break;
+        case "download_count":
+          comparison = (a.download_count || 0) - (b.download_count || 0);
+          break;
+        case "publish_status":
+          comparison = a.publish_status.localeCompare(b.publish_status);
+          break;
+        case "compression":
+          const getRatio = (s: any) => {
+            // Reuse getCompressionInfo logic purely for ratio number
+            if (s.metadata && s.metadata.original_size && s.metadata.optimized_size) {
+              return parseFloat(s.metadata.compression_ratio) || 0;
+            }
+            if (s.original_size_bytes && s.optimized_size_bytes) {
+              return 1 - (s.optimized_size_bytes / s.original_size_bytes);
+            }
+            return 0;
+          };
+          comparison = getRatio(a) - getRatio(b);
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+
     return filtered;
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-gray-400 ml-1" />;
+    return sortDirection === "asc"
+      ? <ArrowUp className="w-3 h-3 text-green-600 ml-1" />
+      : <ArrowDown className="w-3 h-3 text-green-600 ml-1" />;
   };
 
   useEffect(() => {
@@ -1036,26 +1101,68 @@ export function AdminSparkleManager() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       SPARKLE
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      STATUS
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                      onClick={() => handleSort("publish_status")}
+                    >
+                      <div className="flex items-center">
+                        STATUS
+                        <SortIcon field="publish_status" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      VIEWS
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                      onClick={() => handleSort("view_count")}
+                    >
+                      <div className="flex items-center">
+                        VIEWS
+                        <SortIcon field="view_count" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      LIKES
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                      onClick={() => handleSort("like_count")}
+                    >
+                      <div className="flex items-center">
+                        LIKES
+                        <SortIcon field="like_count" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      SHARES
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                      onClick={() => handleSort("share_count")}
+                    >
+                      <div className="flex items-center">
+                        SHARES
+                        <SortIcon field="share_count" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      DOWNLOADS
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                      onClick={() => handleSort("download_count")}
+                    >
+                      <div className="flex items-center">
+                        DOWNLOADS
+                        <SortIcon field="download_count" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      COMPRESSION
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                      onClick={() => handleSort("compression")}
+                    >
+                      <div className="flex items-center">
+                        COMPRESSION
+                        <SortIcon field="compression" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      CREATED
+                    <th
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group select-none"
+                      onClick={() => handleSort("created_at")}
+                    >
+                      <div className="flex items-center">
+                        CREATED
+                        <SortIcon field="created_at" />
+                      </div>
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ACTIONS

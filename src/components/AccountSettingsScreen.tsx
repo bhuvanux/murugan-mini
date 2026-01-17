@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { User, Phone, Mail, Camera, MapPin, ArrowLeft, Lock, CheckCircle2, Loader2, Check, Search, X, ChevronRight, ChevronDown } from 'lucide-react';
+import { User as UserIcon, Phone, Mail, MapPin, ArrowLeft, Lock, CheckCircle2, Loader2, Check, Search, X, ChevronRight, ChevronDown, LogOut, Crown } from 'lucide-react';
 import { AppHeader } from './AppHeader';
 import { supabase } from '../utils/supabase/client';
 
@@ -9,14 +9,13 @@ import { TAMIL_NADU_CITIES } from '../utils/constants';
 
 interface AccountSettingsScreenProps {
     onBack?: () => void;
+    onNavigate?: (page: string) => void;
 }
 
-export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps) {
+export function AccountSettingsScreen({ onBack, onNavigate }: AccountSettingsScreenProps) {
     const { user, updateProfile } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [uploading, setUploading] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [formData, setFormData] = useState({
         displayName: user?.user_metadata?.full_name || user?.user_metadata?.name || '',
@@ -95,247 +94,135 @@ export function AccountSettingsScreen({ onBack }: AccountSettingsScreenProps) {
         }
     };
 
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file || !user) return;
 
-        try {
-            setUploading(true);
-
-            // Check if Mock User - Add safety check
-            if (user && user.id && user.id.startsWith && user.id.startsWith('mock-')) {
-                console.log("[AccountSettings] Mock User detected. Simulating photo upload with Base64 transition...");
-
-                const reader = new FileReader();
-                reader.onloadend = async () => {
-                    const base64String = reader.result as string;
-                    await updateProfile({
-                        avatar_url: base64String
-                    });
-                    setUploading(false);
-                    toast.success('Mock profile photo updated (persists on refresh)!');
-                };
-                reader.readAsDataURL(file);
-                return;
-            }
-
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${user && user.id ? user.id : 'user'}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-            const filePath = `avatars/${fileName}`;
-
-            console.log("[AccountSettings] Uploading photo to Supabase storage...");
-            const { error: uploadError } = await supabase.storage
-                .from('photos')
-                .upload(filePath, file);
-
-            if (uploadError) throw uploadError;
-
-            // Get public URL
-            const { data: { publicUrl } } = supabase.storage
-                .from('photos')
-                .getPublicUrl(filePath);
-
-            console.log("[AccountSettings] Photo uploaded. Updating user metadata with URL:", publicUrl);
-
-            // Update profile with new avatar URL
-            const { error: updateError } = await updateProfile({
-                avatar_url: publicUrl
-            });
-
-            if (updateError) throw updateError;
-
-            toast.success('Profile photo updated!');
-        } catch (error: any) {
-            console.error('[AccountSettings] Photo upload/save error:', error);
-            toast.error(error.message || 'Failed to upload photo');
-        } finally {
-            setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-    };
 
     return (
         <div className="min-h-screen bg-[#f8faf7]">
             <AppHeader title="Edit Profile" onBack={onBack} variant="primary" showKolam={true} />
-            <main className="relative mx-auto max-w-3xl px-6 pb-32" style={{ paddingTop: 'calc(92px + env(safe-area-inset-top))' }}>
+            <main className="relative mx-auto max-w-xl px-6 pb-32" style={{ paddingTop: 'calc(150px + env(safe-area-inset-top))' }}>
                 <div className="space-y-8">
-                    <div className="space-y-8">
-                        {/* Profile Photo Section */}
-                        <div className="flex flex-col items-center">
-                            <div className="relative group">
-                                <div
-                                    className="w-28 h-28 rounded-3xl bg-gradient-to-br from-[#0d5e38] to-[#0a4a2b] flex items-center justify-center text-white shadow-xl shadow-[#0d5e38]/20 overflow-hidden cursor-pointer transition-transform active:scale-95 ring-4 ring-white"
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    {uploading ? (
-                                        <Loader2 className="w-8 h-8 animate-spin text-white/50" />
-                                    ) : user?.user_metadata?.avatar_url ? (
-                                        <img
-                                            src={user.user_metadata.avatar_url}
-                                            alt="Profile"
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src = '';
-                                                (e.target as HTMLImageElement).style.display = 'none';
-                                                (e.target as HTMLImageElement).parentElement?.classList.add('show-fallback');
-                                            }}
-                                        />
-                                    ) : (
-                                        <User size={40} strokeWidth={1.5} />
-                                    )}
-                                    <style>{`
-                                        .show-fallback::after {
-                                            content: '';
-                                            display: flex;
-                                            align-items: center;
-                                            justify-content: center;
-                                            width: 100%;
-                                            height: 100%;
-                                            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E") no-repeat center;
-                                        }
-                                    `}</style>
+                    {/* Form Fields */}
+                    <div className="space-y-6">
+                        {/* Full Name */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-gray-800 ml-1">
+                                Full Name
+                            </label>
+                            <div className="group flex items-center w-full h-14 px-4 bg-white border border-gray-200 rounded-2xl gap-3 transition-all shadow-sm focus-within:border-[#0d5e38] focus-within:ring-4 focus-within:ring-[#0d5e38]/5">
+                                <div className="text-gray-400 group-focus-within:text-[#0d5e38] transition-colors pointer-events-none shrink-0">
+                                    <UserIcon size={20} strokeWidth={2} />
                                 </div>
-
-                                {/* Floating Camera Icon */}
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="absolute -bottom-2 -right-2 w-10 h-10 bg-[#0d5e38] rounded-xl shadow-lg flex items-center justify-center border-4 border-white text-white hover:bg-[#0a4a2b] transition-all active:scale-90"
-                                >
-                                    <Camera size={16} />
-                                </button>
-
                                 <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    className="hidden"
-                                    accept="image/*"
-                                    onChange={handleFileChange}
-                                    disabled={uploading}
+                                    type="text"
+                                    value={formData.displayName}
+                                    onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                                    className="flex-1 bg-transparent border-none text-gray-900 text-base font-medium placeholder:text-gray-400 focus:outline-none focus:ring-0 p-0 w-full"
+                                    placeholder="Enter your full name"
                                 />
                             </div>
-
-                            {/* Helper Text */}
-                            <p className="text-sm font-medium text-gray-500 mt-4">Tap to change photo</p>
                         </div>
 
-                        {/* Form Fields */}
-                        <div className="space-y-6">
-                            {/* Full Name */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-gray-700 ml-1">
-                                    Full Name
-                                </label>
-                                <div className="relative group">
-                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#0d5e38] transition-colors">
-                                        <User size={18} strokeWidth={2} />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        value={formData.displayName}
-                                        onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                                        className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl text-gray-900 text-base font-medium placeholder:text-gray-400 focus:outline-none focus:border-[#0d5e38] focus:ring-4 focus:ring-[#0d5e38]/5 transition-all shadow-sm"
-                                        placeholder="Enter your full name"
-                                    />
+                        {/* Mobile Number (Read-only) */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-gray-800 ml-1">
+                                Mobile Number
+                            </label>
+                            <div className="flex items-center w-full h-14 px-4 bg-gray-100 border border-transparent rounded-2xl gap-3 cursor-not-allowed">
+                                <div className="text-gray-400 pointer-events-none shrink-0">
+                                    <Phone size={20} strokeWidth={2} />
+                                </div>
+                                <input
+                                    type="tel"
+                                    value={formData.phone}
+                                    disabled
+                                    className="flex-1 bg-transparent border-none text-gray-500 text-base font-medium placeholder:text-gray-400 focus:outline-none focus:ring-0 p-0 w-full cursor-not-allowed select-none"
+                                    placeholder="+91 98765 43210"
+                                />
+                                <div className="text-gray-400 pointer-events-none shrink-0">
+                                    <Lock size={18} strokeWidth={2} />
                                 </div>
                             </div>
-
-                            {/* Mobile Number (Read-only) */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-gray-700 ml-1">
-                                    Mobile Number
-                                </label>
-                                <div className="relative">
-                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                                        <Phone size={18} strokeWidth={2} />
-                                    </div>
-                                    <input
-                                        type="tel"
-                                        value={formData.phone}
-                                        disabled
-                                        className="w-full pl-12 pr-12 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-gray-500 text-base font-medium cursor-not-allowed"
-                                        placeholder="+91 98765 43210"
-                                    />
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-                                        <Lock size={16} strokeWidth={2} />
-                                    </div>
-                                </div>
-                                <p className="text-xs text-gray-400 ml-1">Mobile number cannot be changed</p>
-                            </div>
-
-                            {/* Email Address */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-gray-700 ml-1">
-                                    Email Address
-                                </label>
-                                <div className="relative group">
-                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#0d5e38] transition-colors">
-                                        <Mail size={18} strokeWidth={2} />
-                                    </div>
-                                    <input
-                                        type="email"
-                                        value={formData.email}
-                                        onChange={(e) => {
-                                            setFormData({ ...formData, email: e.target.value });
-                                            validateEmail(e.target.value);
-                                        }}
-                                        className={`w-full pl-12 pr-4 py-4 bg-white border ${emailError ? 'border-red-500 ring-4 ring-red-500/5' : 'border-gray-100'} rounded-2xl text-gray-900 text-base font-medium placeholder:text-gray-400 focus:outline-none focus:border-[#0d5e38] focus:ring-4 focus:ring-[#0d5e38]/5 transition-all shadow-sm`}
-                                        placeholder="name@example.com"
-                                    />
-                                </div>
-                                {emailError && (
-                                    <p className="text-xs text-red-500 ml-1 mt-1 font-medium flex items-center gap-1">
-                                        <span className="w-1 h-1 rounded-full bg-red-500" />
-                                        {emailError}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* City */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-gray-700 ml-1">
-                                    City
-                                </label>
-                                <div className="relative">
-                                    <button
-                                        onClick={() => setIsCityPickerOpen(true)}
-                                        className="group w-full pl-4 pr-4 py-4 bg-white border border-gray-100 rounded-2xl text-left flex items-center justify-between cursor-pointer hover:border-[#0d5e38]/30 hover:shadow-md transition-all shadow-sm active:scale-[0.99]"
-                                    >
-                                        <div className="flex items-center gap-3.5">
-                                            <div className="w-9 h-9 rounded-full bg-[#0d5e38]/5 flex items-center justify-center text-[#0d5e38] group-hover:bg-[#0d5e38]/10 transition-colors">
-                                                <MapPin size={18} strokeWidth={2} />
-                                            </div>
-                                            <span className={`text-base font-medium ${formData.city ? 'text-gray-900' : 'text-gray-400'}`}>
-                                                {formData.city || "Select your city"}
-                                            </span>
-                                        </div>
-                                        <ChevronDown size={20} className="text-gray-400 group-hover:text-[#0d5e38] transition-colors" />
-                                    </button>
-                                </div>
-                            </div>
+                            <p className="text-xs font-medium text-gray-400 ml-1 flex items-center gap-1.5">
+                                <Lock size={12} />
+                                Mobile number cannot be changed
+                            </p>
                         </div>
 
-                        {/* Save Button */}
-                        <div className="pt-6">
+                        {/* Email Address */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-gray-800 ml-1">
+                                Email Address
+                            </label>
+                            <div className={`group flex items-center w-full h-14 px-4 bg-white border rounded-2xl gap-3 transition-all shadow-sm focus-within:border-[#0d5e38] focus-within:ring-4 focus-within:ring-[#0d5e38]/5 ${emailError ? 'border-red-500 ring-4 ring-red-500/5' : 'border-gray-200'}`}>
+                                <div className="text-gray-400 group-focus-within:text-[#0d5e38] transition-colors pointer-events-none shrink-0">
+                                    <Mail size={20} strokeWidth={2} />
+                                </div>
+                                <input
+                                    type="email"
+                                    value={formData.email}
+                                    onChange={(e) => {
+                                        setFormData({ ...formData, email: e.target.value });
+                                        validateEmail(e.target.value);
+                                    }}
+                                    className="flex-1 bg-transparent border-none text-gray-900 text-base font-medium placeholder:text-gray-400 focus:outline-none focus:ring-0 p-0 w-full"
+                                    placeholder="name@example.com"
+                                />
+                            </div>
+                            {emailError && (
+                                <p className="text-xs text-red-500 ml-1 mt-1 font-medium flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                    {emailError}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* City Picker */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-gray-800 ml-1">
+                                City
+                            </label>
                             <button
-                                onClick={handleSave}
-                                disabled={!hasChanges || loading}
-                                className="w-full h-14 bg-gradient-to-r from-[#0d5e38] to-[#0a4a2b] text-white font-semibold text-lg rounded-2xl shadow-lg shadow-[#0d5e38]/20 hover:shadow-xl hover:shadow-[#0d5e38]/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98]"
+                                onClick={() => setIsCityPickerOpen(true)}
+                                className="w-full h-14 pl-4 pr-4 bg-white border border-gray-200 rounded-2xl text-left flex items-center justify-between group hover:border-[#0d5e38] hover:border-opacity-50 transition-all shadow-sm active:scale-[0.99]"
                             >
-                                {loading ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        <span>Saving Changes...</span>
-                                    </>
-                                ) : hasChanges ? (
-                                    <>
-                                        <Check className="w-5 h-5" />
-                                        <span>Save Changes</span>
-                                    </>
-                                ) : (
-                                    <span>No Changes to Save</span>
-                                )}
+                                <div className="flex items-center gap-3">
+                                    <div className="text-gray-400 group-hover:text-[#0d5e38] transition-colors">
+                                        <MapPin size={20} strokeWidth={2} />
+                                    </div>
+                                    <span className={`text-base font-medium ${formData.city ? 'text-gray-900' : 'text-gray-400'} truncate`}>
+                                        {formData.city || "Select your city"}
+                                    </span>
+                                </div>
+                                <ChevronDown size={20} className="text-gray-400 group-hover:text-[#0d5e38] transition-colors" />
                             </button>
                         </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="pt-4">
+                        <button
+                            onClick={handleSave}
+                            disabled={!hasChanges || loading}
+                            className={`w-full h-14 font-bold text-lg rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]
+                                ${(!hasChanges || loading)
+                                    ? 'bg-gray-200 text-gray-400 shadow-none cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-[#0d5e38] to-[#0a4a2b] text-white shadow-[#0d5e38]/25 hover:shadow-xl hover:shadow-[#0d5e38]/35'
+                                }`}
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 animate-spin" strokeWidth={2.5} />
+                                    <span>Saving Changes...</span>
+                                </>
+                            ) : hasChanges ? (
+                                <>
+                                    <Check className="w-5 h-5" strokeWidth={3} />
+                                    <span>Save Changes</span>
+                                </>
+                            ) : (
+                                <span>No Changes to Save</span>
+                            )}
+                        </button>
                     </div>
                 </div>
             </main>

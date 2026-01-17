@@ -656,6 +656,38 @@ class UserAPI {
   }
 
   // ========================================
+  // CONFIGURATION
+  // ========================================
+
+  async getAppConfig(key: string) {
+    try {
+      // Fetch directly fromSupabase table via standard client if possible, or use Edge Function if restricted.
+      // Since we enabled public read access to app_config, we can use a direct query or a simple GET endpoint if one existed.
+      // But our request method hits Edge Functions.
+      // Let's rely on a direct Supabase query here for simplicity since we have the client imported in other files, 
+      // BUT `client.ts` uses `request` for Edge Functions.
+
+      // Let's add a helper here using the 'request' pattern if we had an endpoint. 
+      // Since we don't have a specific endpoint for config in the list I saw, 
+      // I will assume we can fetch it via the `create-payment-order` function logic OR just add a direct query here?
+      // Actually, standard practice for this codebase seems to be Edge Functions.
+      // BUT for simplicity and speed, let's use the `supabase` client directly in the COMPONENT, or expose it here.
+
+      // I'll stick to adding a placeholder that returns the DEFAULT Gugan plan if fetches fail, 
+      // or implement a simple fetch if there was a generic endpoint.
+
+      // For now, let's return a hardcoded/default promise to ensure UI works immediately, 
+      // as creating a new endpoint just for this might be overkill if we can directly select in the component.
+      // actually, let's implement the direct select in the component for now, or here.
+
+      // I'll leave this empty and handle it in the component using `supabase` client directly.
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // ========================================
   // DATA TRANSFORMERS (Arrow functions to preserve 'this')
   // ========================================
 

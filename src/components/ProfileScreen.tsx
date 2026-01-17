@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Heart, Settings, Phone, Shield, LogOut, ChevronRight, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { AppHeader } from './AppHeader';
 // @ts-ignore
 import tamilMuruganBanner from '../assets/tamil_murugan_banner.png';
 
@@ -55,20 +56,13 @@ export function ProfileScreen({
     return (
         <div className="min-h-screen bg-white">
             {/* Header with Banner */}
+            <AppHeader title="Profile" showKolam={true} variant="primary" />
+
             <div className="relative">
-                {/* Green Header Bar with safe area padding */}
-                <div
-                    className="bg-[#0d5e38] flex items-center px-4"
-                    style={{
-                        paddingTop: 'calc(env(safe-area-inset-top) + 12px)',
-                        paddingBottom: '12px'
-                    }}
-                >
-                    <h1 className="text-white font-semibold text-lg">Profile</h1>
-                </div>
+
 
                 {/* Content Container */}
-                <div className="pt-6">
+                <div style={{ paddingTop: 'calc(70px + env(safe-area-inset-top))' }}>
 
                     {/* Menu Items */}
                     <div className="px-4 mt-8 space-y-3">

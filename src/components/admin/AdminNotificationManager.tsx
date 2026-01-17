@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 import * as adminAPI from "../../utils/adminAPI";
 import { supabase } from "../../utils/supabase/client";
-import { format } from "date-fns";
+import { format, subDays, isAfter, parseISO } from "date-fns";
 import { AddNotificationModal } from "./AddNotificationModal";
 import { NotificationAnalyticsDrawer } from "./NotificationAnalyticsDrawer";
 
@@ -54,9 +54,10 @@ interface NotificationStats {
 
 export function AdminNotificationManager() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [stats, setStats] = useState<NotificationStats | null>(null);
+    // const [stats, setStats] = useState<NotificationStats | null>(null); // Replaced with derived stats
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<"draft" | "scheduled" | "sent">("draft");
+    const [timeframe, setTimeframe] = useState<"24h" | "7d" | "30d" | "90d" | "all">("30d");
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingNotification, setEditingNotification] = useState<Notification | null>(null);
     const [analyticsNotificationId, setAnalyticsNotificationId] = useState<string | null>(null);
@@ -79,31 +80,88 @@ export function AdminNotificationManager() {
     };
 
     // Load stats
-    const loadStats = async () => {
-        try {
-            const response = await adminAPI.getNotificationStats();
-            if (response.success && response.data) {
-                setStats(response.data);
-            }
-        } catch (error: any) {
-            console.error("Failed to load stats:", error);
+    // const loadStats = async () => { // calculating locally now
+    //     try {
+    //         const response = await adminAPI.getNotificationStats();
+    //         if (response.success && response.data) {
+    //             setStats(response.data);
+    //         }
+    //     } catch (error: any) {
+    //         console.error("Failed to load stats:", error);
+    //     }
+    // };
+
+    // Filter by Timeframe
+    const timeframeFilteredNotifications = React.useMemo(() => {
+        if (timeframe === "all") return notifications;
+
+        const now = new Date();
+        let cutoffDate: Date;
+
+        switch (timeframe) {
+            case "24h":
+                cutoffDate = subDays(now, 1);
+                break;
+            case "7d":
+                cutoffDate = subDays(now, 7);
+                break;
+            case "30d":
+                cutoffDate = subDays(now, 30);
+                break;
+            case "90d":
+                cutoffDate = subDays(now, 90);
+                break;
+            default:
+                cutoffDate = subDays(now, 30);
         }
-    };
+
+        return notifications.filter(n => {
+            const dateParams = n.created_at;
+            return isAfter(parseISO(dateParams), cutoffDate);
+        });
+    }, [notifications, timeframe]);
+
+    // Derive Stats from Filtered Data
+    const stats = React.useMemo(() => {
+        const total = timeframeFilteredNotifications.length;
+        const sent = timeframeFilteredNotifications.filter(n => n.status === "sent");
+        const scheduled = timeframeFilteredNotifications.filter(n => n.status === "scheduled");
+        const drafts = timeframeFilteredNotifications.filter(n => n.status === "draft");
+        const important = timeframeFilteredNotifications.filter(n => n.notification_type === "important");
+
+        const totalViews = timeframeFilteredNotifications.reduce((acc, n) => acc + (n.view_count || 0), 0);
+        const totalOpens = timeframeFilteredNotifications.reduce((acc, n) => acc + (n.open_count || 0), 0);
+
+        const openRate = totalViews > 0
+            ? ((totalOpens / totalViews) * 100).toFixed(1)
+            : "0.0";
+
+        return {
+            total_notifications: total,
+            sent_notifications: sent.length,
+            scheduled_notifications: scheduled.length,
+            draft_notifications: drafts.length,
+            important_notifications: important.length,
+            total_views: totalViews,
+            total_opens: totalOpens,
+            open_rate: Number(openRate)
+        };
+    }, [timeframeFilteredNotifications]);
 
     useEffect(() => {
         loadNotifications();
-        loadStats();
+        // loadStats(); // calculating locally now
     }, []);
 
     // Filter notifications by active tab
     const filteredNotifications = React.useMemo(() => {
-        return notifications.filter((n) => n.status === activeTab);
-    }, [notifications, activeTab]);
+        return timeframeFilteredNotifications.filter((n) => n.status === activeTab);
+    }, [timeframeFilteredNotifications, activeTab]);
 
     // Calculate tab counts
-    const draftCount = notifications.filter((n) => n.status === "draft").length;
-    const scheduledCount = notifications.filter((n) => n.status === "scheduled").length;
-    const sentCount = notifications.filter((n) => n.status === "sent").length;
+    const draftCount = timeframeFilteredNotifications.filter((n) => n.status === "draft").length;
+    const scheduledCount = timeframeFilteredNotifications.filter((n) => n.status === "scheduled").length;
+    const sentCount = timeframeFilteredNotifications.filter((n) => n.status === "sent").length;
 
     // Calculate open rate
     const calculateOpenRate = (views: number, opens: number) => {
@@ -119,7 +177,7 @@ export function AdminNotificationManager() {
             await adminAPI.deleteNotification(notification.id);
             toast.success("Notification deleted");
             loadNotifications();
-            loadStats();
+            // loadStats(); // calculating locally now
         } catch (error: any) {
             toast.error("Failed to delete: " + error.message);
         }
@@ -133,7 +191,7 @@ export function AdminNotificationManager() {
             await adminAPI.sendNotification(notification.id);
             toast.success("Notification sent successfully!");
             loadNotifications();
-            loadStats();
+            // removed loadStats()
         } catch (error: any) {
             toast.error("Failed to send: " + error.message);
         }
@@ -155,7 +213,7 @@ export function AdminNotificationManager() {
             toast.success(`Deleted ${selectedIds.length} notification(s)`);
             setSelectedIds([]);
             loadNotifications();
-            loadStats();
+            // removed loadStats()
         } catch (error: any) {
             toast.error("Failed to delete: " + error.message);
         }
@@ -200,7 +258,7 @@ export function AdminNotificationManager() {
                     <button
                         onClick={() => {
                             loadNotifications();
-                            loadStats();
+                            // removed loadStats()
                         }}
                         disabled={isLoading}
                         className="p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -427,9 +485,19 @@ export function AdminNotificationManager() {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                        {notification.scheduled_at
-                                            ? format(new Date(notification.scheduled_at), "MMM dd, yyyy HH:mm")
-                                            : "-"}
+                                        {notification.status === "sent" ? (
+                                            <span className="font-medium text-gray-900">
+                                                {notification.metadata?.fcm_delivery?.success_count !== undefined
+                                                    ? `${notification.metadata.fcm_delivery.success_count} Devices`
+                                                    : notification.metadata?.fcm_delivery?.total_tokens !== undefined
+                                                        ? `${notification.metadata.fcm_delivery.total_tokens} Devices`
+                                                        : "-"}
+                                            </span>
+                                        ) : notification.scheduled_at ? (
+                                            format(new Date(notification.scheduled_at), "MMM dd, yyyy HH:mm")
+                                        ) : (
+                                            "-"
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                         {notification.sent_at
@@ -497,7 +565,7 @@ export function AdminNotificationManager() {
                 }}
                 onSuccess={() => {
                     loadNotifications();
-                    loadStats();
+                    // removed loadStats()
                 }}
                 editingNotification={editingNotification}
             />

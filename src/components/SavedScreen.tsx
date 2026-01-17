@@ -19,10 +19,11 @@ import { AppHeader } from './AppHeader';
 
 type SavedScreenProps = {
   onSelectMedia: (media: MediaItem, allMedia: MediaItem[]) => void;
+  onPlaySong?: (songs: YouTubeMedia[], index: number) => void;
   onBack?: () => void;
 };
 
-export function SavedScreen({ onSelectMedia, onBack }: SavedScreenProps) {
+export function SavedScreen({ onSelectMedia, onPlaySong, onBack }: SavedScreenProps) {
   const [savedMedia, setSavedMedia] = useState<MediaItem[]>([]);
   const [savedSongs, setSavedSongs] = useState<YouTubeMedia[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,6 +144,16 @@ export function SavedScreen({ onSelectMedia, onBack }: SavedScreenProps) {
   const handleShare = async (item: YouTubeMedia) => {
     const youtubeId = extractYouTubeId(item.embedUrl);
     const url = `https://www.youtube.com/watch?v=${youtubeId}`;
+
+    // Track share attempt
+    try {
+      await userAPI.trackShare(item.id);
+      const { analyticsTracker } = await import('../utils/analytics/useAnalytics');
+      analyticsTracker.track(item.type === 'youtube' ? 'song' : 'wallpaper', item.id, 'share');
+    } catch (e) {
+      console.warn('Share tracking failed:', e);
+    }
+
     try {
       if (navigator.share) {
         await navigator.share({
@@ -229,7 +240,7 @@ export function SavedScreen({ onSelectMedia, onBack }: SavedScreenProps) {
         </div>
       </AppHeader>
 
-      <div className="pt-[175px] pb-20">
+      <div className="pb-20" style={{ paddingTop: 'calc(160px + env(safe-area-inset-top))' }}>
 
         {/* Wallpapers Tab */}
         {activeTab === 'wallpapers' && (
@@ -269,10 +280,11 @@ export function SavedScreen({ onSelectMedia, onBack }: SavedScreenProps) {
               </div>
             ) : (
               <div className="px-4 space-y-2">
-                {savedSongs.map((song) => (
+                {savedSongs.map((song, index) => (
                   <div
                     key={song.id}
-                    className="bg-white rounded-lg p-3 flex items-center gap-3 shadow-sm"
+                    onClick={() => onPlaySong?.(savedSongs, index)}
+                    className="bg-white rounded-lg p-3 flex items-center gap-3 shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
                   >
                     {/* Thumbnail */}
                     <div className="relative flex-shrink-0">
@@ -310,20 +322,23 @@ export function SavedScreen({ onSelectMedia, onBack }: SavedScreenProps) {
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                          <button
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <MoreVertical className="w-5 h-5 text-gray-500" />
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => handleShare(song)}>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleShare(song); }}>
                             <Share2 className="w-4 h-4 mr-2" />
                             Share
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleOpenYouTube(song.embedUrl)}>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenYouTube(song.embedUrl); }}>
                             <ExternalLink className="w-4 h-4 mr-2" />
                             Open in YouTube
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toggleSongFavorite(song.id)} className="text-red-600">
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleSongFavorite(song.id); }} className="text-red-600">
                             <Heart className="w-4 h-4 mr-2" />
                             Remove from Favorites
                           </DropdownMenuItem>

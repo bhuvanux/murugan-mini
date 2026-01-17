@@ -285,6 +285,7 @@ export function SongsScreen({ onPlaySong, externalCurrentIndex, externalPlaylist
     const youtubeId = extractYouTubeId(item.embedUrl);
     const url = `https://www.youtube.com/watch?v=${youtubeId}`;
     try {
+      await userAPI.trackShare(item.id);
       await analyticsTracker.track('song', item.id, 'share');
       console.log('[SongsScreen] ✅ Share tracked to backend analytics');
 
@@ -330,7 +331,7 @@ export function SongsScreen({ onPlaySong, externalCurrentIndex, externalPlaylist
     try {
       await analyticsTracker.track(activeTab === 'songs' ? 'song' : 'video', item.id, 'download');
       console.log(`[${activeTab}] ✅ Download tracked to backend analytics`);
-      
+
       // For YouTube content, we can't directly download, so we'll open the YouTube page
       const youtubeId = extractYouTubeId(item.embedUrl);
       const url = `https://www.youtube.com/watch?v=${youtubeId}`;

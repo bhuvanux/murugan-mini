@@ -21,7 +21,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { toast } from "sonner";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { MediaItem } from "../utils/api/client";
+import { MediaItem, userAPI } from "../utils/api/client";
 import { useWallpaperAnalytics } from "../utils/analytics/useAnalytics";
 import { WhatsAppIcon } from "./icons/WhatsAppIcon";
 import { InterstitialAdModal } from "./ui/overlays/InterstitialAdModal";
@@ -310,6 +310,7 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
             });
 
             import("../utils/analytics/useAnalytics").then(({ analyticsTracker }) => {
+              userAPI.trackShare(mediaItem.id);
               analyticsTracker.track('wallpaper', mediaItem.id, 'share');
             });
             toast.dismiss(loadingToast);
@@ -336,6 +337,7 @@ export function WallpaperFullView({ media, initialIndex, onClose }: WallpaperFul
         .then(() => {
           // Track share using analytics (only after successful share)
           import("../utils/analytics/useAnalytics").then(({ analyticsTracker }) => {
+            userAPI.trackShare(mediaItem.id);
             analyticsTracker.track('wallpaper', mediaItem.id, 'share');
           });
           toast.success("Shared successfully!");
